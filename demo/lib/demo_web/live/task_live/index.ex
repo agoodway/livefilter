@@ -91,6 +91,13 @@ defmodule DemoWeb.TaskLive.Index do
     ~H"""
     <Layouts.app flash={@flash}>
       <div class="space-y-6">
+        <div class="text-center max-w-4xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto mb-4">
+          <p class="text-base-content/70 text-sm leading-relaxed">
+            Composable, URL-driven filtering for LiveView with Linear/Notion-style UI filters and PostgREST-compatible parameters for shareable filter states using
+            <a href="https://github.com/agoodway/pgrest" target="_blank" class="font-medium text-primary hover:underline">PgRest</a>.
+          </p>
+        </div>
+
         <div class="lf-filter-section">
           <LiveFilter.bar filter={@live_filter} />
         </div>

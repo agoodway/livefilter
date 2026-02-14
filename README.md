@@ -1,6 +1,6 @@
 # LiveFilter
 
-Composable, URL-driven filtering for Phoenix LiveView with Linear/Notion-style composable UI filters and PostgREST/Supabase-compatible URL parameters for bookmarkable, shareable filter states using [PgRest](https://github.com/agoodway/pgrest)
+Composable, URL-driven filtering for LiveView with Linear/Notion-style UI filters and PostgREST-compatible parameters for shareable filter states using [PgRest](https://github.com/agoodway/pgrest)
 
 ## Demo App
 

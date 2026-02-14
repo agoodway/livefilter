@@ -77,6 +77,14 @@ defmodule DemoWeb.Layouts do
       <main class="lf-container py-8">
         {render_slot(@inner_block)}
       </main>
+
+      <footer class="border-t border-base-200 py-6 mt-8">
+        <div class="lf-container">
+          <p class="text-center text-sm text-base-content/60">
+            A project by <a href="https://goodway.dev" target="_blank" class="font-medium text-primary hover:underline">Goodway</a> — we build software that drives results.
+          </p>
+        </div>
+      </footer>
     </div>
 
     <.flash_group flash={@flash} />

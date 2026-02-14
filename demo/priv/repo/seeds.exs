@@ -4,6 +4,12 @@ alias Demo.Assignees.Assignee
 alias Demo.Tasks.Task
 alias Demo.Tasks.TaskAssignee
 
+# Clear existing data (order matters for foreign keys)
+Repo.delete_all(TaskAssignee)
+Repo.delete_all(Task)
+Repo.delete_all(Assignee)
+Repo.delete_all(Project)
+
 # Create Projects
 projects_data = [
   %{name: "Phoenix", description: "Core Phoenix framework work", color: "#FD4F00"},

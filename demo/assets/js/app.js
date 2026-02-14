@@ -23,7 +23,7 @@ import "phoenix_html"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
-import {hooks as liveFilterHooks} from "../../../priv/static/live_filter.js"
+import {hooks as liveFilterHooks} from "live_filter/priv/static/live_filter.js"
 
 const hooks = {
   ...liveFilterHooks,
