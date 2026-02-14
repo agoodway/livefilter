@@ -1,0 +1,283 @@
+/* See the Tailwind configuration guide for advanced usage
+   https://tailwindcss.com/docs/configuration */
+
+@import "tailwindcss" source(none);
+@source "../css";
+@source "../js";
+@source "../../lib/demo_web";
+@source "../../../lib/live_filter";
+@source "../../deps/daisy_ui_components";
+
+/* A Tailwind plugin that makes "hero-#{ICON}" classes available.
+   The heroicons installation itself is managed by your mix.exs */
+@plugin "../vendor/heroicons";
+
+/* daisyUI Tailwind Plugin. You can update this file by fetching the latest version with:
+   curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui.js
+   Make sure to look at the daisyUI changelog: https://daisyui.com/docs/changelog/ */
+@plugin "../vendor/daisyui" {
+  themes: false;
+}
+
+/* LiveFilter Demo Theme - Warm Slate with Amber accents */
+@plugin "../vendor/daisyui-theme" {
+  name: "dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: "dark";
+  --color-base-100: oklch(22% 0.012 260);
+  --color-base-200: oklch(18% 0.010 260);
+  --color-base-300: oklch(14% 0.008 260);
+  --color-base-content: oklch(92% 0.008 260);
+  --color-primary: oklch(75% 0.18 75);
+  --color-primary-content: oklch(18% 0.02 75);
+  --color-secondary: oklch(65% 0.12 260);
+  --color-secondary-content: oklch(98% 0.01 260);
+  --color-accent: oklch(70% 0.16 45);
+  --color-accent-content: oklch(18% 0.02 45);
+  --color-neutral: oklch(30% 0.02 260);
+  --color-neutral-content: oklch(88% 0.01 260);
+  --color-info: oklch(70% 0.14 230);
+  --color-info-content: oklch(18% 0.02 230);
+  --color-success: oklch(72% 0.16 155);
+  --color-success-content: oklch(18% 0.02 155);
+  --color-warning: oklch(80% 0.16 80);
+  --color-warning-content: oklch(18% 0.02 80);
+  --color-error: oklch(65% 0.22 25);
+  --color-error-content: oklch(98% 0.02 25);
+  --radius-selector: 0.375rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@plugin "../vendor/daisyui-theme" {
+  name: "light";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(99% 0.005 80);
+  --color-base-200: oklch(96% 0.008 80);
+  --color-base-300: oklch(92% 0.012 80);
+  --color-base-content: oklch(25% 0.015 260);
+  --color-primary: oklch(55% 0.16 45);
+  --color-primary-content: oklch(98% 0.01 45);
+  --color-secondary: oklch(50% 0.08 260);
+  --color-secondary-content: oklch(98% 0.01 260);
+  --color-accent: oklch(45% 0.12 45);
+  --color-accent-content: oklch(98% 0.01 45);
+  --color-neutral: oklch(35% 0.02 260);
+  --color-neutral-content: oklch(98% 0.01 260);
+  --color-info: oklch(55% 0.18 240);
+  --color-info-content: oklch(98% 0.01 240);
+  --color-success: oklch(55% 0.16 155);
+  --color-success-content: oklch(98% 0.01 155);
+  --color-warning: oklch(70% 0.16 80);
+  --color-warning-content: oklch(20% 0.02 80);
+  --color-error: oklch(55% 0.22 25);
+  --color-error-content: oklch(98% 0.01 25);
+  --radius-selector: 0.375rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* Add variants based on LiveView classes */
+@custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
+@custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
+@custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
+
+/* Use the data attribute for dark mode  */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Make LiveView wrapper divs transparent for layout */
+[data-phx-session], [data-phx-teleported-src] { display: contents }
+
+/* ============================================
+   LiveFilter Demo - Custom Styles
+   ============================================ */
+
+/* Typography - Using system fonts with a technical feel */
+:root {
+  --font-display: "SF Mono", "Fira Code", "JetBrains Mono", ui-monospace, monospace;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  letter-spacing: -0.01em;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Monospace elements for technical feel */
+.font-mono, code, .task-id {
+  font-family: var(--font-display);
+  font-feature-settings: "liga" 0;
+}
+
+/* Custom table styling */
+.lf-table {
+  @apply w-full text-sm;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.lf-table thead {
+  @apply sticky top-0 z-10;
+}
+
+.lf-table thead th {
+  @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider;
+  @apply bg-base-200 text-base-content/70 border-b border-base-300;
+}
+
+.lf-table thead th:first-child {
+  @apply rounded-tl-lg;
+}
+
+.lf-table thead th:last-child {
+  @apply rounded-tr-lg;
+}
+
+.lf-table tbody tr {
+  @apply transition-colors duration-150;
+}
+
+.lf-table tbody tr:hover {
+  @apply bg-base-200/50;
+}
+
+.lf-table tbody td {
+  @apply px-4 py-3 border-b border-base-200;
+}
+
+/* Status badges with pill style */
+.status-pill {
+  @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
+  @apply border transition-colors whitespace-nowrap;
+}
+
+.status-pill--done {
+  @apply bg-success/10 text-success border-success/20;
+}
+
+.status-pill--in_progress {
+  @apply bg-info/10 text-info border-info/20;
+}
+
+.status-pill--review {
+  @apply bg-warning/10 text-warning border-warning/20;
+}
+
+.status-pill--todo {
+  @apply bg-base-300 text-base-content/70 border-base-300;
+}
+
+.status-pill--backlog {
+  @apply bg-base-200 text-base-content/50 border-base-200;
+}
+
+/* Priority indicators */
+.priority-indicator {
+  @apply inline-flex items-center gap-1 text-xs font-medium;
+}
+
+.priority-indicator--critical {
+  @apply text-error;
+}
+
+.priority-indicator--high {
+  @apply text-warning;
+}
+
+.priority-indicator--medium {
+  @apply text-base-content/80;
+}
+
+.priority-indicator--low {
+  @apply text-base-content/50;
+}
+
+/* Tag chips */
+.tag-chip {
+  @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap;
+  @apply bg-base-300/50 text-base-content/70 border border-base-300;
+}
+
+/* Urgent indicator */
+.urgent-indicator {
+  @apply text-error flex-shrink-0;
+}
+
+/* Header branding */
+.lf-brand {
+  @apply flex items-center gap-3;
+}
+
+.lf-brand-icon {
+  @apply w-8 h-8 rounded-lg flex items-center justify-center;
+  @apply bg-gradient-to-br from-primary to-accent text-primary-content;
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+.lf-brand-text {
+  font-family: var(--font-display);
+  @apply text-lg font-semibold tracking-tight;
+}
+
+/* Filter bar enhancements */
+.lf-filter-section {
+  @apply bg-base-100 rounded-xl border border-base-200 p-4;
+  @apply shadow-sm;
+}
+
+/* Sortable column headers */
+.sortable-header {
+  @apply cursor-pointer select-none inline-flex items-center gap-1;
+  @apply hover:text-primary transition-colors;
+}
+
+.sortable-header:hover .sort-icon {
+  @apply opacity-100;
+}
+
+.sort-icon {
+  @apply opacity-40 transition-opacity;
+}
+
+/* Page container */
+.lf-container {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* Smooth transitions */
+* {
+  @apply transition-colors duration-150;
+}
+
+/* Scrollbar styling for webkit */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-base-200 rounded-full;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-base-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-base-content/30;
+}

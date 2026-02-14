@@ -1,0 +1,24 @@
+{
+  "name": "live_filter",
+  "version": "0.1.0",
+  "description": "LiveFilter hooks for Phoenix LiveView",
+  "license": "MIT",
+  "type": "module",
+  "main": "./priv/static/live_filter.js",
+  "module": "./priv/static/live_filter.js",
+  "exports": {
+    ".": "./priv/static/live_filter.js"
+  },
+  "files": [
+    "priv/static/*"
+  ],
+  "keywords": [
+    "phoenix",
+    "liveview",
+    "filter",
+    "elixir"
+  ],
+  "peerDependencies": {
+    "phoenix_live_view": ">=1.0.0"
+  }
+}
