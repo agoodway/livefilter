@@ -64,6 +64,7 @@ defmodule Demo.MixProject do
       {:bandit, "~> 1.5"},
       {:daisy_ui_components, "~> 0.9"},
       {:live_filter, github: "agoodway/livefilter"},
+      # {:live_filter, path: ".."},
       {:pg_rest, github: "agoodway/pgrest"},
       {:tidewave, "~> 0.5", only: :dev}
     ]

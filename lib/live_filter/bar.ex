@@ -222,7 +222,7 @@ defmodule LiveFilter.Bar do
 
     ~H"""
     <div
-      class={[@is_dropdown && "dropdown dropdown-bottom relative z-50 focus-within:z-[60]", @theme_classes.chip, @variant_class]}
+      class={[@is_dropdown && "dropdown dropdown-bottom relative focus-within:z-[100]", @theme_classes.chip, @variant_class]}
       id={"filter-chip-#{@filter.id}"}
       phx-hook={@is_dropdown && @newly_added && "AutoOpenDropdown"}
       phx-target={@myself}
@@ -1376,7 +1376,7 @@ defmodule LiveFilter.Bar do
         name={"filter[#{@filter.id}]"}
         value={@filter.value}
         placeholder="0"
-        class="input input-xs input-ghost w-16 text-center px-1 focus:outline-none focus:bg-base-200 rounded [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        class="border-none bg-transparent text-center px-1 rounded text-sm w-12 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         phx-debounce="300"
       />
     </form>
@@ -1392,7 +1392,7 @@ defmodule LiveFilter.Bar do
         name={"filter[#{@filter.id}]"}
         value={@filter.value}
         placeholder="value"
-        class="input input-xs input-ghost w-24 px-1 focus:outline-none focus:bg-base-200 rounded"
+        class="border-none bg-transparent px-1 rounded text-sm w-24 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
         phx-debounce="300"
       />
     </form>
@@ -1605,7 +1605,7 @@ defmodule LiveFilter.Bar do
     assigns = assign(assigns, :filtered_fields, filtered)
 
     ~H"""
-    <div class="dropdown dropdown-bottom relative z-50 focus-within:z-[60]">
+    <div class="dropdown dropdown-bottom relative focus-within:z-[100]">
       <button
         tabindex="0"
         class="btn btn-sm btn-ghost gap-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
