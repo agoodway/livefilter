@@ -195,6 +195,51 @@ LiveFilter.boolean(:active,
 )
 ```
 
+## Pagination
+
+LiveFilter includes a pagination component with PostgREST-compatible `limit`/`offset` URL params.
+
+```elixir
+# In handle_params
+{filters, remaining} = LiveFilter.from_params(params, filter_config())
+{pagination, remaining} = LiveFilter.pagination_from_params(remaining, default_limit: 25)
+
+# Apply to query
+query
+|> LiveFilter.QueryBuilder.apply(filters, schema: Task)
+|> LiveFilter.QueryBuilder.apply_pagination(pagination)
+
+# Get total count for pagination UI
+total = LiveFilter.QueryBuilder.count(base_query, Repo)
+pagination = LiveFilter.Pagination.with_total(pagination, total)
+```
+
+Render the paginator:
+
+```heex
+<LiveFilter.paginator pagination={@pagination} />
+```
+
+### Paginator Options
+
+| Option       | Default | Description                         |
+|--------------|---------|-------------------------------------|
+| `max_pages`  | 5       | Max page buttons in stepper         |
+| `class`      | ""      | Additional CSS classes              |
+
+```heex
+<LiveFilter.paginator pagination={@pagination} max_pages={7} />
+```
+
+Handle page changes:
+
+```elixir
+def handle_info({:live_filter, :page_changed, pagination_params}, socket) do
+  all_params = Map.merge(filter_params, pagination_params)
+  {:noreply, push_patch(socket, to: ~p"/tasks?#{all_params}")}
+end
+```
+
 ## License
 
 MIT

@@ -16,9 +16,11 @@ defmodule LiveFilter do
       ]
   """
 
-  alias LiveFilter.{Filter, FilterConfig, Params.Parser, Params.Serializer}
+  alias LiveFilter.{Filter, FilterConfig, Pagination, Params.Parser, Params.Serializer}
 
   use Phoenix.Component
+
+  @max_offset 100_000
 
   @doc """
   Creates a text filter config.
@@ -199,6 +201,91 @@ defmodule LiveFilter do
     Parser.from_params(params, config)
   end
 
+  @doc """
+  Parses pagination from URL params using PostgREST `limit`/`offset` parameters.
+
+  Returns `{pagination, remaining_params}`.
+
+  ## Options
+
+    * `:default_limit` - Default items per page (default: 25)
+    * `:max_limit` - Maximum allowed limit value (default: 100)
+    * `:limit_options` - Available per-page options for UI dropdown (default: [10, 25, 50, 100])
+
+  ## Example
+
+      {pagination, remaining} = LiveFilter.pagination_from_params(params, default_limit: 25)
+      # pagination.limit => 25
+      # pagination.offset => 0
+
+      # With URL ?limit=50&offset=100
+      {pagination, remaining} = LiveFilter.pagination_from_params(%{"limit" => "50", "offset" => "100"})
+      # pagination.limit => 50
+      # pagination.offset => 100
+  """
+  @spec pagination_from_params(map(), keyword()) :: {Pagination.t(), map()}
+  def pagination_from_params(params, opts \\ []) do
+    default_limit = Keyword.get(opts, :default_limit, 25)
+    max_limit = Keyword.get(opts, :max_limit, 100)
+    limit_options = Keyword.get(opts, :limit_options, [10, 25, 50, 100])
+    max_offset = Keyword.get(opts, :max_offset, @max_offset)
+
+    pagination = %Pagination{
+      limit: parse_limit(params, default_limit, max_limit),
+      offset: parse_offset(params, max_offset),
+      limit_options: limit_options,
+      max_limit: max_limit
+    }
+
+    remaining = extract_remaining_params(params)
+
+    {pagination, remaining}
+  end
+
+  defp parse_limit(params, default_limit, max_limit) do
+    params
+    |> Map.get("limit")
+    |> parse_positive_int(default_limit)
+    |> min(max_limit)
+  end
+
+  defp parse_offset(params, max_offset) do
+    params
+    |> Map.get("offset")
+    |> parse_non_negative_int(0)
+    |> min(max_offset)
+  end
+
+  defp extract_remaining_params(params) do
+    params
+    |> Map.delete("limit")
+    |> Map.delete("offset")
+  end
+
+  defp parse_positive_int(nil, default), do: default
+
+  defp parse_positive_int(val, default) when is_binary(val) do
+    case Integer.parse(val) do
+      {int, ""} when int > 0 -> int
+      _ -> default
+    end
+  end
+
+  defp parse_positive_int(val, _default) when is_integer(val) and val > 0, do: val
+  defp parse_positive_int(_, default), do: default
+
+  defp parse_non_negative_int(nil, default), do: default
+
+  defp parse_non_negative_int(val, default) when is_binary(val) do
+    case Integer.parse(val) do
+      {int, ""} when int >= 0 -> int
+      _ -> default
+    end
+  end
+
+  defp parse_non_negative_int(val, _default) when is_integer(val) and val >= 0, do: val
+  defp parse_non_negative_int(_, default), do: default
+
   @doc ~S"""
   Builds a path with raw (non-encoded) query string from a params map.
 
@@ -245,6 +332,23 @@ defmodule LiveFilter do
   def bar(assigns) do
     ~H"""
     <.live_component module={LiveFilter.Bar} id={@filter.id} filter={@filter} mode={@mode} theme={@theme} variant={@variant} />
+    """
+  end
+
+  @doc """
+  Convenience function component that renders `LiveFilter.Paginator`.
+
+  ## Example
+
+      <LiveFilter.paginator pagination={@pagination} />
+      <LiveFilter.paginator pagination={@pagination} class="mt-4" />
+  """
+  attr(:pagination, Pagination, required: true)
+  attr(:class, :string, default: "")
+
+  def paginator(assigns) do
+    ~H"""
+    <.live_component module={LiveFilter.Paginator} id="live-filter-paginator" pagination={@pagination} class={@class} />
     """
   end
 

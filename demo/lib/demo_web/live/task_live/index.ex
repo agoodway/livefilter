@@ -1,9 +1,9 @@
 defmodule DemoWeb.TaskLive.Index do
   use DemoWeb, :live_view
 
-  alias Demo.Tasks
+  alias Demo.{Projects, Repo, Tasks}
   alias Demo.Tasks.Task
-  alias Demo.Projects
+  alias LiveFilter.{Pagination, Params.Serializer, QueryBuilder}
 
   defp filter_config do
     [
@@ -31,7 +31,11 @@ defmodule DemoWeb.TaskLive.Index do
         icon: "hero-folder"
       ),
       LiveFilter.boolean(:urgent, label: "Urgent", icon: "hero-exclamation-triangle"),
-      LiveFilter.date_range(:due_date, label: "Due Date", icon: "hero-calendar-days", default_visible: true),
+      LiveFilter.date_range(:due_date,
+        label: "Due Date",
+        icon: "hero-calendar-days",
+        default_visible: true
+      ),
       LiveFilter.multi_select(:tags,
         label: "Tags",
         options: ~w(bug feature improvement docs testing security performance),
@@ -51,10 +55,12 @@ defmodule DemoWeb.TaskLive.Index do
   @impl true
   def handle_params(params, _uri, socket) do
     {filters, remaining} = LiveFilter.from_params(params, filter_config())
+    {pagination, remaining} = LiveFilter.pagination_from_params(remaining, default_limit: 25)
 
     socket =
       socket
       |> LiveFilter.init(filter_config(), filters)
+      |> assign(:pagination, pagination)
       |> assign(:remaining_params, remaining)
       |> load_tasks()
 
@@ -62,15 +68,31 @@ defmodule DemoWeb.TaskLive.Index do
   end
 
   @impl true
-  def handle_info({:live_filter, :updated, params}, socket) do
-    all_params = Map.merge(socket.assigns.remaining_params, params)
+  def handle_info(
+        {:live_filter, :updated, params},
+        %{assigns: %{remaining_params: remaining_params, pagination: %{limit: limit}}} = socket
+      ) do
+    pagination_params = %{"limit" => to_string(limit), "offset" => "0"}
+    all_params = Map.merge(remaining_params, params) |> Map.merge(pagination_params)
     {:noreply, push_patch(socket, to: LiveFilter.to_path("/tasks", all_params))}
   end
 
-  defp load_tasks(socket) do
-    query =
+  def handle_info(
+        {:live_filter, :page_changed, pagination_params},
+        %{assigns: %{remaining_params: remaining_params, live_filter: %{filters: filters}}} =
+          socket
+      ) do
+    filter_params = Serializer.to_params(filters)
+    all_params = Map.merge(remaining_params, filter_params) |> Map.merge(pagination_params)
+    {:noreply, push_patch(socket, to: LiveFilter.to_path("/tasks", all_params))}
+  end
+
+  defp load_tasks(
+         %{assigns: %{pagination: pagination, live_filter: %{filters: filters}}} = socket
+       ) do
+    base_query =
       Task
-      |> LiveFilter.QueryBuilder.apply(socket.assigns.live_filter.filters,
+      |> QueryBuilder.apply(filters,
         schema: Task,
         allowed_fields: [
           :title,
@@ -83,7 +105,18 @@ defmodule DemoWeb.TaskLive.Index do
         ]
       )
 
-    assign(socket, :tasks, Tasks.list_tasks(query))
+    total_count = QueryBuilder.count(base_query, Repo)
+
+    tasks =
+      base_query
+      |> QueryBuilder.apply_pagination(pagination)
+      |> Tasks.list_tasks()
+
+    pagination = Pagination.with_total(pagination, total_count)
+
+    socket
+    |> assign(:tasks, tasks)
+    |> assign(:pagination, pagination)
   end
 
   @impl true
@@ -93,8 +126,11 @@ defmodule DemoWeb.TaskLive.Index do
       <div class="space-y-6">
         <div class="text-center max-w-4xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto mb-4">
           <p class="text-base-content/70 text-sm leading-relaxed">
-            Composable, URL-driven filtering for LiveView with Linear/Notion-style UI filters and PostgREST-compatible parameters for shareable filter states using
-            <a href="https://github.com/agoodway/pgrest" target="_blank" class="font-medium text-primary hover:underline">PgRest</a>.
+            Composable, URL-driven filtering for LiveView with Linear/Notion-style UI filters and PostgREST-compatible parameters for shareable filter states using <a
+              href="https://github.com/agoodway/pgrest"
+              target="_blank"
+              class="font-medium text-primary hover:underline"
+            >PgRest</a>.
           </p>
         </div>
 
@@ -128,7 +164,9 @@ defmodule DemoWeb.TaskLive.Index do
             </:col>
             <:col :let={task} label="Hours">
               <span class="tabular-nums text-base-content/70 text-right block">
-                {if task.estimated_hours, do: :erlang.float_to_binary(task.estimated_hours / 1, decimals: 1), else: "—"}
+                {if task.estimated_hours,
+                  do: :erlang.float_to_binary(task.estimated_hours / 1, decimals: 1),
+                  else: "—"}
               </span>
             </:col>
             <:col :let={task} label="Due">
@@ -138,6 +176,8 @@ defmodule DemoWeb.TaskLive.Index do
             </:col>
           </.table>
         </div>
+
+        <LiveFilter.paginator pagination={@pagination} />
       </div>
     </Layouts.app>
     """

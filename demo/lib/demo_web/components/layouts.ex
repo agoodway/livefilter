@@ -42,7 +42,14 @@ defmodule DemoWeb.Layouts do
             <div class="flex items-center gap-8">
               <a href="/" class="lf-brand">
                 <div class="lf-brand-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="size-5">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    class="size-5"
+                  >
                     <line x1="4" y1="6" x2="20" y2="6" />
                     <circle cx="8" cy="6" r="2" fill="currentColor" />
                     <line x1="4" y1="12" x2="20" y2="12" />
@@ -54,7 +61,11 @@ defmodule DemoWeb.Layouts do
                 <span class="lf-brand-text">LiveFilter</span>
               </a>
               <nav class="hidden md:flex items-center gap-1">
-                <a href="https://github.com/agoodway/livefilter" target="_blank" class="px-3 py-2 rounded-lg text-sm font-medium text-base-content/60 hover:text-base-content hover:bg-base-200 transition-colors">
+                <a
+                  href="https://github.com/agoodway/livefilter"
+                  target="_blank"
+                  class="px-3 py-2 rounded-lg text-sm font-medium text-base-content/60 hover:text-base-content hover:bg-base-200 transition-colors"
+                >
                   Docs
                 </a>
               </nav>
@@ -81,7 +92,15 @@ defmodule DemoWeb.Layouts do
       <footer class="border-t border-base-200 py-6 mt-8">
         <div class="lf-container">
           <p class="text-center text-sm text-base-content/60">
-            A project by <a href="https://goodway.dev" target="_blank" class="font-medium text-primary hover:underline">Goodway</a> — we build software that drives results.
+            A project by
+            <a
+              href="https://goodway.dev"
+              target="_blank"
+              class="font-medium text-primary hover:underline"
+            >
+              Goodway
+            </a>
+            — we build software that drives results.
           </p>
         </div>
       </footer>

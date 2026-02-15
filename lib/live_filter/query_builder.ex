@@ -5,8 +5,9 @@ defmodule LiveFilter.QueryBuilder do
   """
 
   import Kernel, except: [apply: 3]
+  import Ecto.Query, only: [limit: 2, offset: 2, exclude: 2]
 
-  alias LiveFilter.Filter
+  alias LiveFilter.{Filter, Pagination}
   alias LiveFilter.Params.Parser
 
   @doc """
@@ -122,4 +123,44 @@ defmodule LiveFilter.QueryBuilder do
   defp empty_value?(%Filter{value: []}), do: true
   defp empty_value?(%Filter{operator: :gte_lte, value: {nil, nil}}), do: true
   defp empty_value?(_), do: false
+
+  # --- Pagination ---
+
+  @doc """
+  Applies pagination (limit/offset) to an Ecto query.
+
+  ## Example
+
+      query
+      |> LiveFilter.QueryBuilder.apply(filters, schema: Task)
+      |> LiveFilter.QueryBuilder.apply_pagination(pagination)
+      |> Repo.all()
+  """
+  @spec apply_pagination(Ecto.Queryable.t(), Pagination.t()) :: Ecto.Query.t()
+  def apply_pagination(query, %Pagination{limit: lim, offset: off}) do
+    query
+    |> limit(^lim)
+    |> offset(^off)
+  end
+
+  @doc """
+  Counts total records for a query (for pagination).
+
+  Strips select, order_by, preload, limit, and offset to get an accurate count.
+
+  ## Example
+
+      base_query = Task |> LiveFilter.QueryBuilder.apply(filters, schema: Task)
+      total_count = LiveFilter.QueryBuilder.count(base_query, Repo)
+  """
+  @spec count(Ecto.Queryable.t(), module()) :: non_neg_integer()
+  def count(query, repo) do
+    query
+    |> exclude(:select)
+    |> exclude(:order_by)
+    |> exclude(:preload)
+    |> exclude(:limit)
+    |> exclude(:offset)
+    |> repo.aggregate(:count)
+  end
 end

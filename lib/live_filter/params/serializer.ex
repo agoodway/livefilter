@@ -3,7 +3,7 @@ defmodule LiveFilter.Params.Serializer do
   Converts a list of active Filter structs into a PostgREST-compatible query param map.
   """
 
-  alias LiveFilter.Filter
+  alias LiveFilter.{Filter, Pagination}
 
   @doc """
   Serializes a list of filters to a PostgREST-compatible param map.
@@ -149,5 +149,19 @@ defmodule LiveFilter.Params.Serializer do
       "" -> base_path
       qs -> "#{base_path}?#{qs}"
     end
+  end
+
+  @doc """
+  Serializes pagination state to PostgREST-compatible URL params.
+
+  ## Example
+
+      iex> pagination = %LiveFilter.Pagination{limit: 25, offset: 50}
+      iex> Serializer.pagination_to_params(pagination)
+      %{"limit" => "25", "offset" => "50"}
+  """
+  @spec pagination_to_params(Pagination.t()) :: map()
+  def pagination_to_params(%Pagination{limit: limit, offset: offset}) do
+    %{"limit" => to_string(limit), "offset" => to_string(offset)}
   end
 end
