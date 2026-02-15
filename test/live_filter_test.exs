@@ -73,6 +73,29 @@ defmodule LiveFilterTest do
     end
   end
 
+  describe "datetime_range/2" do
+    test "returns datetime_range FilterConfig" do
+      config = LiveFilter.datetime_range(:started_at, label: "Started")
+      assert config.type == :datetime_range
+      assert config.operators == [:gte_lte]
+      assert config.default_operator == :gte_lte
+    end
+
+    test "auto-generates label from field name" do
+      config = LiveFilter.datetime_range(:started_at)
+      # Phoenix.Naming.humanize converts :started_at to "Started_at"
+      assert config.label == "Started_at"
+    end
+
+    test "supports default_visible and icon options" do
+      config =
+        LiveFilter.datetime_range(:started_at, default_visible: true, icon: "hero-calendar")
+
+      assert config.default_visible == true
+      assert config.icon == "hero-calendar"
+    end
+  end
+
   describe "datetime/2" do
     test "returns datetime FilterConfig" do
       config = LiveFilter.datetime(:updated_at, label: "Updated")
@@ -143,7 +166,10 @@ defmodule LiveFilterTest do
       assert [{:eq, "is"}, {:neq, "is not"}] = Operators.options_for_type(:select)
       assert [{:ov, "contains any"} | _] = Operators.options_for_type(:multi_select)
       assert [{:is, "is"}] = Operators.options_for_type(:boolean)
+      assert [{:eq, "is"} | _] = Operators.options_for_type(:date)
       assert [{:gte_lte, "between"}] = Operators.options_for_type(:date_range)
+      assert [{:gte_lte, "between"}] = Operators.options_for_type(:datetime_range)
+      assert [{:eq, "is"} | _] = Operators.options_for_type(:datetime)
     end
   end
 end

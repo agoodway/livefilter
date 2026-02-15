@@ -97,10 +97,30 @@ defmodule LiveFilter do
   Creates a date range filter config.
 
   Default operators: `[:gte_lte]`, default: `:gte_lte`.
+
+  Use this for `:date` schema fields. For `:utc_datetime` or `:utc_datetime_usec`
+  fields, use `datetime_range/2` instead.
   """
   @spec date_range(atom(), keyword()) :: FilterConfig.t()
   def date_range(field, opts \\ []) do
     build_config(field, :date_range, opts,
+      operators: [:gte_lte],
+      default_operator: :gte_lte
+    )
+  end
+
+  @doc """
+  Creates a datetime range filter config.
+
+  Default operators: `[:gte_lte]`, default: `:gte_lte`.
+
+  Similar to `date_range/2` but generates full ISO8601 datetime values with
+  start-of-day (00:00:00Z) and end-of-day (23:59:59Z) times. Use this for
+  `:utc_datetime` or `:utc_datetime_usec` schema fields.
+  """
+  @spec datetime_range(atom(), keyword()) :: FilterConfig.t()
+  def datetime_range(field, opts \\ []) do
+    build_config(field, :datetime_range, opts,
       operators: [:gte_lte],
       default_operator: :gte_lte
     )

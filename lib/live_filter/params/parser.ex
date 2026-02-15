@@ -64,7 +64,10 @@ defmodule LiveFilter.Params.Parser do
   defp date_range_condition?(cond, config_map) do
     case parse_condition_field_op(cond) do
       {field, op} when op in [:gte, :lte] ->
-        match?(%{type: :date_range}, find_config(field, config_map))
+        case find_config(field, config_map) do
+          %{type: type} when type in [:date_range, :datetime_range] -> true
+          _ -> false
+        end
 
       _ ->
         false
@@ -102,8 +105,9 @@ defmodule LiveFilter.Params.Parser do
 
   defp build_date_range_filter_from_group({field, field_conds}, config_map) do
     case {find_config(field, config_map), extract_date_range_values(field_conds)} do
-      {%{type: :date_range} = config, {gte_val, lte_val}}
-      when not is_nil(gte_val) or not is_nil(lte_val) ->
+      {%{type: type} = config, {gte_val, lte_val}}
+      when type in [:date_range, :datetime_range] and
+             (not is_nil(gte_val) or not is_nil(lte_val)) ->
         [Filter.new(config, :gte_lte, {gte_val, lte_val})]
 
       _ ->
@@ -182,8 +186,11 @@ defmodule LiveFilter.Params.Parser do
     [{config, _key, _value} | _] = entries
 
     case config.type do
-      :date_range -> build_date_range_filter(config, entries)
-      _ -> Enum.map(entries, fn {c, _k, val} -> parse_single_filter(c, val) end)
+      type when type in [:date_range, :datetime_range] ->
+        build_date_range_filter(config, entries)
+
+      _ ->
+        Enum.map(entries, fn {c, _k, val} -> parse_single_filter(c, val) end)
     end
   end
 

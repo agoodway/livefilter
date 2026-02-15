@@ -105,14 +105,22 @@ defmodule LiveFilter.DateUtils do
   Formats a date for display in the filter chip.
   Handles both Date structs and ISO8601 strings.
   """
-  @spec format_date(Date.t() | String.t() | nil) :: String.t()
+  @spec format_date(Date.t() | DateTime.t() | String.t() | nil) :: String.t()
   def format_date(nil), do: "..."
   def format_date(%Date{} = date), do: Calendar.strftime(date, "%b %-d, %Y")
+  def format_date(%DateTime{} = dt), do: dt |> DateTime.to_date() |> format_date()
 
   def format_date(date_str) when is_binary(date_str) do
+    # Try Date first, then DateTime (for ISO8601 strings like "2026-02-15T23:59:59Z")
     case Date.from_iso8601(date_str) do
-      {:ok, date} -> Calendar.strftime(date, "%b %-d, %Y")
-      _ -> date_str
+      {:ok, date} ->
+        Calendar.strftime(date, "%b %-d, %Y")
+
+      _ ->
+        case DateTime.from_iso8601(date_str) do
+          {:ok, dt, _offset} -> dt |> DateTime.to_date() |> format_date()
+          _ -> date_str
+        end
     end
   end
 
@@ -149,12 +157,20 @@ defmodule LiveFilter.DateUtils do
   end
 
   defp to_date(%Date{} = d), do: d
+  defp to_date(%DateTime{} = dt), do: DateTime.to_date(dt)
   defp to_date(nil), do: nil
 
   defp to_date(str) when is_binary(str) do
+    # Try Date first, then DateTime (for ISO8601 strings like "2026-02-15T23:59:59Z")
     case Date.from_iso8601(str) do
-      {:ok, d} -> d
-      _ -> nil
+      {:ok, d} ->
+        d
+
+      _ ->
+        case DateTime.from_iso8601(str) do
+          {:ok, dt, _offset} -> DateTime.to_date(dt)
+          _ -> nil
+        end
     end
   end
 

@@ -67,6 +67,10 @@ defmodule LiveFilter.Operators do
     [{:gte_lte, "between"}]
   end
 
+  def options_for_type(:datetime_range) do
+    [{:gte_lte, "between"}]
+  end
+
   def options_for_type(:datetime) do
     [{:eq, "is"}, {:gt, "after"}, {:gte, "on or after"}, {:lt, "before"}, {:lte, "on or before"}]
   end

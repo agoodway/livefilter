@@ -199,7 +199,7 @@ defmodule LiveFilter.Bar do
     is_radio_group_dropdown = radio_group_needs_dropdown?(assigns.filter.config)
 
     is_dropdown =
-      filter_type in [:select, :multi_select, :boolean, :date_range, :datetime] or
+      filter_type in [:select, :multi_select, :boolean, :date_range, :datetime_range, :datetime] or
         is_radio_group_dropdown
 
     assigns =
@@ -210,7 +210,8 @@ defmodule LiveFilter.Bar do
       |> assign(:is_select, filter_type == :select)
       |> assign(:is_multi_select, filter_type == :multi_select)
       |> assign(:is_boolean, filter_type == :boolean)
-      |> assign(:is_date_range, filter_type == :date_range)
+      |> assign(:is_date_range, filter_type in [:date_range, :datetime_range])
+      |> assign(:is_datetime_range, filter_type == :datetime_range)
       |> assign(:is_datetime, filter_type == :datetime)
       |> assign(:is_radio_group_dropdown, is_radio_group_dropdown)
       |> assign_new(:show_calendar, fn -> false end)
@@ -1328,10 +1329,9 @@ defmodule LiveFilter.Bar do
     """
   end
 
-  defp value_display(
-         %{filter: %{config: %{type: :date_range}, value: {start_val, end_val}}} = assigns
-       )
-       when not is_nil(start_val) or not is_nil(end_val) do
+  defp value_display(%{filter: %{config: %{type: type}, value: {start_val, end_val}}} = assigns)
+       when type in [:date_range, :datetime_range] and
+              (not is_nil(start_val) or not is_nil(end_val)) do
     assigns = assign(assigns, :display_range, DateUtils.format_range({start_val, end_val}))
 
     ~H"""
@@ -1341,7 +1341,8 @@ defmodule LiveFilter.Bar do
     """
   end
 
-  defp value_display(%{filter: %{config: %{type: :date_range}}} = assigns) do
+  defp value_display(%{filter: %{config: %{type: type}}} = assigns)
+       when type in [:date_range, :datetime_range] do
     ~H"""
     <span class="text-base-content/60 text-sm italic cursor-pointer">Select</span>
     """
@@ -1515,10 +1516,9 @@ defmodule LiveFilter.Bar do
     """
   end
 
-  defp value_badges(
-         %{filter: %{config: %{type: :date_range}, value: {start_val, end_val}}} = assigns
-       )
-       when not is_nil(start_val) or not is_nil(end_val) do
+  defp value_badges(%{filter: %{config: %{type: type}, value: {start_val, end_val}}} = assigns)
+       when type in [:date_range, :datetime_range] and
+              (not is_nil(start_val) or not is_nil(end_val)) do
     assigns = assign(assigns, :display_range, DateUtils.format_range({start_val, end_val}))
 
     ~H"""
@@ -1696,6 +1696,7 @@ defmodule LiveFilter.Bar do
       :multi_select -> Inputs.MultiSelect.render(assigns)
       :date -> Inputs.Date.render(assigns)
       :date_range -> Inputs.DateRange.render(assigns)
+      :datetime_range -> Inputs.DateRange.render(assigns)
       :datetime -> Inputs.DateTime.render(assigns)
       :boolean -> Inputs.Boolean.render(assigns)
     end
@@ -2003,8 +2004,8 @@ defmodule LiveFilter.Bar do
          {:ok, preset} <- safe_to_existing_atom(preset_str, valid_presets(filter)) do
       {start_date, end_date} = DateUtils.parse_preset(preset)
 
-      start_val = if start_date, do: Date.to_iso8601(start_date), else: nil
-      end_val = if end_date, do: Date.to_iso8601(end_date), else: nil
+      # For datetime_range, output full ISO8601 datetimes with time component
+      {start_val, end_val} = format_range_value(filter.config.type, start_date, end_date)
 
       new_filters =
         update_filter(socket.assigns.filters, filter_id, &%{&1 | value: {start_val, end_val}})
@@ -2165,6 +2166,32 @@ defmodule LiveFilter.Bar do
       f -> f
     end)
   end
+
+  # Format date range values based on filter type
+  # For datetime_range: output full ISO8601 datetimes with time component
+  # For date_range: output plain ISO8601 dates
+  defp format_range_value(:datetime_range, start_date, end_date) do
+    {date_to_start_of_day_iso(start_date), date_to_end_of_day_iso(end_date)}
+  end
+
+  defp format_range_value(_type, start_date, end_date) do
+    {date_to_iso(start_date), date_to_iso(end_date)}
+  end
+
+  defp date_to_start_of_day_iso(nil), do: nil
+
+  defp date_to_start_of_day_iso(date) do
+    date |> DateTime.new!(~T[00:00:00], "Etc/UTC") |> DateTime.to_iso8601()
+  end
+
+  defp date_to_end_of_day_iso(nil), do: nil
+
+  defp date_to_end_of_day_iso(date) do
+    date |> DateTime.new!(~T[23:59:59], "Etc/UTC") |> DateTime.to_iso8601()
+  end
+
+  defp date_to_iso(nil), do: nil
+  defp date_to_iso(date), do: Date.to_iso8601(date)
 
   defp notify_parent(socket, new_filters) do
     params = Serializer.to_params(new_filters)
