@@ -21,7 +21,7 @@ defmodule LiveFilter.Filter do
   @spec new(FilterConfig.t()) :: t()
   def new(%FilterConfig{} = config) do
     %__MODULE__{
-      id: generate_id(),
+      id: stable_id(config.field),
       field: config.field,
       operator: config.default_operator,
       value: config.default_value,
@@ -35,7 +35,7 @@ defmodule LiveFilter.Filter do
   @spec new(FilterConfig.t(), LiveFilter.Types.operator(), LiveFilter.Types.filter_value()) :: t()
   def new(%FilterConfig{} = config, operator, value) do
     %__MODULE__{
-      id: generate_id(),
+      id: stable_id(config.field),
       field: config.field,
       operator: operator,
       value: value,
@@ -43,7 +43,7 @@ defmodule LiveFilter.Filter do
     }
   end
 
-  defp generate_id do
-    :crypto.strong_rand_bytes(8) |> Base.url_encode64(padding: false)
+  defp stable_id(field) do
+    Atom.to_string(field)
   end
 end

@@ -127,11 +127,13 @@ defmodule LiveFilterTest do
       assert filter.config == config
     end
 
-    test "generates unique IDs" do
+    test "generates stable IDs based on field name" do
       config = LiveFilter.text(:name, label: "Name")
       f1 = Filter.new(config)
       f2 = Filter.new(config)
-      assert f1.id != f2.id
+      # IDs should be deterministic and stable for LiveView DOM patching
+      assert f1.id == f2.id
+      assert f1.id == "name"
     end
   end
 

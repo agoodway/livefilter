@@ -48,6 +48,19 @@ defmodule LiveFilter.Theme do
       badge: "badge badge-primary badge-sm gap-1",
       remove: "px-2 opacity-60 hover:opacity-100 cursor-pointer",
       icon: ""
+    },
+    # Neutral theme: no DaisyUI btn classes, uses theme-aware utilities
+    # Works seamlessly with light/dark themes without CSS overrides
+    neutral: %{
+      chip:
+        "inline-flex items-center h-8 text-sm gap-0 px-0 font-normal bg-base-100 border border-base-300 rounded-lg text-base-content hover:bg-base-200 transition-colors",
+      field: "flex items-center gap-1.5 px-2.5 border-r border-base-300",
+      operator:
+        "px-2 text-base-content/70 hover:text-base-content hover:bg-base-200 rounded cursor-pointer",
+      values: "flex items-center gap-1 px-2",
+      badge: "badge badge-soft badge-sm gap-1 rounded",
+      remove: "px-2 opacity-60 hover:opacity-100 cursor-pointer",
+      icon: ""
     }
   }
 

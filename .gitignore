@@ -22,6 +22,8 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 pg_rest-*.tar
 
+node_modules/
+
 TODO.md
 
 # AI stuff

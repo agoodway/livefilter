@@ -82,6 +82,66 @@ defmodule LiveFilter.QueryBuilderTest do
       # Should just return the base queryable
       assert query == Task
     end
+
+    test "applies select :in filter" do
+      filter =
+        make_filter(:status, :select, :in, ["active", "pending"],
+          options: ~w(active pending shipped),
+          operators: [:eq, :neq, :in, :not_in]
+        )
+
+      query = QueryBuilder.apply(Task, [filter])
+      assert %Ecto.Query{} = query
+      query_str = inspect(query)
+      assert query_str =~ "status"
+      assert query_str =~ "in"
+    end
+
+    test "applies select :not_in filter" do
+      filter =
+        make_filter(:status, :select, :not_in, ["draft"],
+          options: ~w(draft active shipped),
+          operators: [:eq, :neq, :in, :not_in]
+        )
+
+      query = QueryBuilder.apply(Task, [filter])
+      assert %Ecto.Query{} = query
+      query_str = inspect(query)
+      assert query_str =~ "status"
+      assert query_str =~ "not in"
+    end
+
+    test "applies select :not_in filter with multiple values" do
+      filter =
+        make_filter(:status, :select, :not_in, ["draft", "cancelled"],
+          options: ~w(draft active shipped cancelled),
+          operators: [:eq, :neq, :in, :not_in]
+        )
+
+      query = QueryBuilder.apply(Task, [filter])
+      assert %Ecto.Query{} = query
+      query_str = inspect(query)
+      assert query_str =~ "status"
+    end
+
+    test "applies combined :in and :not_in filters on different fields" do
+      filters = [
+        make_filter(:status, :select, :in, ["active", "pending"],
+          options: ~w(active pending shipped),
+          operators: [:eq, :neq, :in, :not_in]
+        ),
+        make_filter(:priority, :select, :not_in, ["low"],
+          options: ~w(low medium high),
+          operators: [:eq, :neq, :in, :not_in]
+        )
+      ]
+
+      query = QueryBuilder.apply(Task, filters)
+      assert %Ecto.Query{} = query
+      query_str = inspect(query)
+      assert query_str =~ "status"
+      assert query_str =~ "priority"
+    end
   end
 
   describe "apply/3 with param map" do

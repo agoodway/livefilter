@@ -7,11 +7,16 @@
   "main": "./priv/static/live_filter.js",
   "module": "./priv/static/live_filter.js",
   "exports": {
-    ".": "./priv/static/live_filter.js"
+    "import": "./priv/static/live_filter.js",
+    "default": "./priv/static/live_filter.js"
   },
   "files": [
-    "priv/static/*"
+    "priv/static/live_filter.js",
+    "assets/js/*"
   ],
+  "scripts": {
+    "build": "cp assets/js/live_filter.js priv/static/live_filter.js"
+  },
   "keywords": [
     "phoenix",
     "liveview",

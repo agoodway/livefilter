@@ -202,7 +202,12 @@ defmodule LiveFilter do
   @spec init(Phoenix.LiveView.Socket.t(), [FilterConfig.t()], [Filter.t()]) ::
           Phoenix.LiveView.Socket.t()
   def init(socket, config, filters \\ []) do
-    id = "live-filter-" <> (:crypto.strong_rand_bytes(4) |> Base.url_encode64(padding: false))
+    # Preserve existing ID across push_patch to maintain input focus
+    existing_id = get_in(socket.assigns, [:live_filter, :id])
+
+    id =
+      existing_id ||
+        "live-filter-" <> (:crypto.strong_rand_bytes(4) |> Base.url_encode64(padding: false))
 
     assign(socket, :live_filter, %{
       config: config,

@@ -167,6 +167,134 @@ defmodule LiveFilter.BarTest do
       # Clear all button should be gone
       refute html =~ "Clear all"
     end
+
+    test "resets always-on filter values to defaults", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/test")
+
+      # Type into the always-on search filter (using filter_event helper)
+      filter_event(view, "change_value", %{"id" => "search", "value" => "test value"})
+
+      # Clear all should be visible when always-on filter has a value
+      assert render(view) =~ "Clear all"
+
+      # Click clear all
+      view |> element("[phx-click=clear_all]") |> render_click()
+
+      html = render(view)
+
+      # Search filter should still exist but with empty value
+      assert html =~ "Search"
+      assert has_element?(view, "input[name='filter[search]'][value='']")
+
+      # Clear all should be gone since all values are defaults
+      refute html =~ "Clear all"
+    end
+
+    test "shows Clear all button when always-on filter has value but no added filters", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, "/test")
+
+      # Initially Clear all should not be visible (only default always-on filters)
+      refute render(view) =~ "Clear all"
+
+      # Type into the always-on search filter (using filter_event helper)
+      filter_event(view, "change_value", %{"id" => "search", "value" => "some search"})
+
+      # Now Clear all should be visible
+      assert render(view) =~ "Clear all"
+    end
+  end
+
+  describe "clear_all with default_visible filters" do
+    test "preserves default_visible filters after clear_all", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/test-default-visible")
+
+      # Verify initial state - default_visible filters should be visible
+      html = render(view)
+      assert html =~ "Status"
+      assert html =~ "Urgent"
+
+      # Add another filter that is not default_visible
+      add_filter(view, :active)
+
+      # Clear all should be visible (we have a user-added filter)
+      assert render(view) =~ "Clear all"
+
+      # Click clear all
+      view |> element("[phx-click=clear_all]") |> render_click()
+
+      html = render(view)
+
+      # Default_visible filters should still be present
+      assert html =~ "Status"
+      assert html =~ "Urgent"
+
+      # Always-on search should remain
+      assert html =~ "Search"
+
+      # User-added filter (active) should be removed
+      refute html =~ "filter-chip-active"
+
+      # Clear all should be gone since all filters are at defaults
+      refute html =~ "Clear all"
+    end
+
+    test "resets default_visible filter values to defaults after clear_all", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/test-default-visible")
+
+      # Find the urgent filter ID and set a value
+      html = render(view)
+      [_, filter_id] = Regex.run(~r/filter-chip-([^"]+)/, html)
+
+      # Set the boolean filter to true
+      filter_event(view, "change_boolean", %{"id" => filter_id, "value" => "true"})
+
+      # Clear all should be visible (non-default value)
+      assert render(view) =~ "Clear all"
+
+      # Click clear all
+      view |> element("[phx-click=clear_all]") |> render_click()
+
+      html = render(view)
+
+      # Default_visible filter should still be present but with reset value
+      assert html =~ "Urgent"
+
+      # Clear all should be gone since value was reset to default
+      refute html =~ "Clear all"
+    end
+
+    test "shows Clear all when default_visible filter has non-default value", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/test-default-visible")
+
+      # Initially Clear all should not be visible (only baseline filters with defaults)
+      refute render(view) =~ "Clear all"
+
+      # Find the urgent filter ID and set a value
+      html = render(view)
+      [_, filter_id] = Regex.run(~r/filter-chip-([^"]+)/, html)
+
+      # Set the boolean filter to true
+      filter_event(view, "change_boolean", %{"id" => filter_id, "value" => "true"})
+
+      # Now Clear all should be visible
+      assert render(view) =~ "Clear all"
+    end
+
+    test "hides Clear all when only default_visible filters exist with default values", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, "/test-default-visible")
+
+      # Initially should have default_visible filters rendered
+      html = render(view)
+      assert html =~ "Status"
+      assert html =~ "Urgent"
+
+      # Clear all should NOT be visible (baseline filters with default values)
+      refute html =~ "Clear all"
+    end
   end
 
   describe "hides add filter when all fields active" do

@@ -147,6 +147,28 @@ end
 | Boolean      | `LiveFilter.boolean/2`       | is                           |
 | Radio Group  | `LiveFilter.radio_group/2`   | eq                           |
 
+### Select Filter with Multi-Value Operators
+
+Select filters support additional operators for multi-value selection. Add `:in` and `:not_in` to enable "is any of" and "is none of" filtering:
+
+```elixir
+LiveFilter.select(:status,
+  label: "Status",
+  options: ~w(draft pending active shipped),
+  operators: [:eq, :neq, :in, :not_in],  # Enable multi-value operators
+  mode: :command                          # Command mode shows operator dropdown
+)
+```
+
+| Operator  | Label        | Value Mode | URL Format              | Description                  |
+|-----------|--------------|------------|-------------------------|------------------------------|
+| `:eq`     | "is"         | single     | `status=eq.active`      | Exact match                  |
+| `:neq`    | "is not"     | single     | `status=neq.draft`      | Not equal                    |
+| `:in`     | "is any of"  | multi      | `status=in.(a,b,c)`     | Matches any selected value   |
+| `:not_in` | "is none of" | multi      | `status=not_in.(a,b)`   | Excludes all selected values |
+
+The UI automatically switches between single-select and multi-select based on the active operator. When switching between single/multi operators, the value is cleared to prevent type mismatches.
+
 ## Display Modes
 
 LiveFilter supports two display modes for filter chips:
@@ -166,6 +188,60 @@ Or per-filter in the configuration:
 
 ```elixir
 LiveFilter.number(:estimated_hours, label: "Hours", mode: :command)
+```
+
+## Theming
+
+LiveFilter provides preset themes that control the styling of filter chips. Set the theme on the bar:
+
+```heex
+<LiveFilter.bar filter={@live_filter} theme={:neutral} variant={:neutral} />
+```
+
+### Available Themes
+
+| Theme      | Description                                                    |
+|------------|----------------------------------------------------------------|
+| `:default` | DaisyUI btn-based styling with outline variant                 |
+| `:minimal` | Lighter padding and simpler styling                            |
+| `:bordered`| Primary color accent with borders                              |
+| `:neutral` | Theme-aware utilities without DaisyUI btn classes              |
+
+### Theme + Variant Combinations
+
+The `theme` controls element styling (chip, badge, field, etc.) while `variant` controls the DaisyUI btn variant class:
+
+| Variant    | Class Applied | Notes                                      |
+|------------|---------------|--------------------------------------------|
+| `:outline` | `btn-outline` | Can have dark active/focus states          |
+| `:ghost`   | `btn-ghost`   | Transparent background                     |
+| `:soft`    | `btn-soft`    | Subtle background                          |
+| `:neutral` | (none)        | No btn variant, uses theme utilities only  |
+
+### The `:neutral` Theme
+
+The `:neutral` theme avoids DaisyUI's `btn` component classes entirely, using theme-aware Tailwind utilities instead. This prevents the dark active/focus states that `btn-outline` can produce on light themes:
+
+```heex
+<LiveFilter.bar filter={@live_filter} theme={:neutral} variant={:neutral} />
+```
+
+This theme uses:
+- `bg-base-100`, `text-base-content`, `border-base-300` for automatic light/dark theme support
+- `badge-soft` with `rounded` for squared badge styling
+- No CSS overrides needed in your host app
+
+### Tailwind Content Scanning
+
+For Tailwind to generate LiveFilter's theme classes, add the library's templates to your `tailwind.config.js`:
+
+```javascript
+module.exports = {
+  content: [
+    // ... existing paths ...
+    "../deps/live_filter/**/*.*ex",
+  ],
+}
 ```
 
 ## Filter Options

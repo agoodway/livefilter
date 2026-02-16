@@ -12,7 +12,8 @@ defmodule LiveFilter.Operators do
     lte: "is at most",
     like: "like",
     ilike: "contains",
-    in: "in",
+    in: "is any of",
+    not_in: "is none of",
     is: "is",
     is_null: "is null",
     cs: "contains all",
@@ -82,4 +83,14 @@ defmodule LiveFilter.Operators do
   def options_for_type(:radio_group) do
     [{:eq, "is"}]
   end
+
+  @doc """
+  Returns whether an operator uses single or multi-value selection.
+
+  Multi-value operators (`:in`, `:not_in`, `:ov`, `:cs`, `:cd`) allow selecting
+  multiple values, while single-value operators use a single selection.
+  """
+  @spec value_mode(atom()) :: :single | :multi
+  def value_mode(op) when op in [:in, :not_in, :ov, :cs, :cd], do: :multi
+  def value_mode(_op), do: :single
 end

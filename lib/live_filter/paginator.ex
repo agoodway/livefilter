@@ -139,6 +139,10 @@ defmodule LiveFilter.Paginator do
     """
   end
 
+  defp page_buttons(_page, total_pages, _max_pages) when total_pages <= 0 do
+    []
+  end
+
   defp page_buttons(_page, total_pages, max_pages) when total_pages <= max_pages do
     Enum.to_list(1..total_pages)
   end

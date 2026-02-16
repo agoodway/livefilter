@@ -78,6 +78,12 @@ defmodule LiveFilter.Params.Serializer do
   defp param_key(%Filter{config: %{custom_param: custom}}) when is_binary(custom), do: custom
   defp param_key(%Filter{field: field}), do: Atom.to_string(field)
 
+  # Custom param filters: raw value without operator prefix (not PostgREST)
+  defp serialize_value(%Filter{config: %{custom_param: custom}, value: value})
+       when is_binary(custom) do
+    to_string(value)
+  end
+
   # Ilike: auto-wrap with * wildcards if not already present
   defp serialize_value(%Filter{operator: :ilike, value: value}) when is_binary(value) do
     wrapped =
@@ -91,6 +97,11 @@ defmodule LiveFilter.Params.Serializer do
   # IN: list value -> in.(a,b,c)
   defp serialize_value(%Filter{operator: :in, value: values}) when is_list(values) do
     "in.(#{Enum.join(values, ",")})"
+  end
+
+  # NOT IN: list value -> not_in.(a,b,c)
+  defp serialize_value(%Filter{operator: :not_in, value: values}) when is_list(values) do
+    "not_in.(#{Enum.join(values, ",")})"
   end
 
   # IS: boolean -> is.true / is.false

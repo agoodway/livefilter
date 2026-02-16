@@ -7,8 +7,10 @@ defmodule LiveFilter.Inputs.Text do
     <div class="relative">
       <input
         type="text"
+        id={"filter-text-#{@filter.id}"}
         class="input input-bordered input-sm w-full pr-8"
         value={@filter.value || ""}
+        data-server-value={@filter.value || ""}
         placeholder={@filter.config.placeholder || "Type to filter..."}
         phx-change="change_value"
         phx-debounce="300"

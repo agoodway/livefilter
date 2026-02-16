@@ -12,5 +12,6 @@ defmodule LiveFilter.TestRouter do
   scope "/", LiveFilter do
     pipe_through(:browser)
     live("/test", TestLive)
+    live("/test-default-visible", TestLiveDefaultVisible)
   end
 end

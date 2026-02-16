@@ -195,14 +195,22 @@ defmodule LiveFilter.Params.Parser do
   end
 
   defp parse_single_filter(config, value) when is_binary(value) do
-    case PgRest.Parser.parse_operator_value(value) do
-      {:ok, op, val} ->
-        val = post_process_value(op, val)
-        Filter.new(config, op, val)
+    # Handle custom not_in operator (not supported by PgRest)
+    case value do
+      "not_in.(" <> rest ->
+        values = rest |> String.trim_trailing(")") |> String.split(",", trim: true)
+        Filter.new(config, :not_in, values)
 
-      {:error, _} ->
-        # For custom params without operator prefix, use default operator
-        Filter.new(config, config.default_operator, value)
+      _ ->
+        case PgRest.Parser.parse_operator_value(value) do
+          {:ok, op, val} ->
+            val = post_process_value(op, val)
+            Filter.new(config, op, val)
+
+          {:error, _} ->
+            # For custom params without operator prefix, use default operator
+            Filter.new(config, config.default_operator, value)
+        end
     end
   end
 
@@ -216,6 +224,11 @@ defmodule LiveFilter.Params.Parser do
   # Array operators: parse {a,b,c} format into list
   defp post_process_value(op, val) when op in [:cs, :cd, :ov] and is_binary(val) do
     parse_array_value(val)
+  end
+
+  # IN operator: parse (a,b,c) format into list
+  defp post_process_value(:in, val) when is_binary(val) do
+    parse_in_value(val)
   end
 
   defp post_process_value(_op, val), do: val
@@ -237,6 +250,16 @@ defmodule LiveFilter.Params.Parser do
   end
 
   defp parse_array_value(val), do: [val]
+
+  # Parse IN value format: (a,b,c) -> ["a", "b", "c"]
+  defp parse_in_value("(" <> rest) do
+    rest
+    |> String.trim_trailing(")")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+  end
+
+  defp parse_in_value(val), do: [val]
 
   # Date range: merge gte/lte param pairs into a single filter
   defp build_date_range_filter(config, entries) do
@@ -265,8 +288,16 @@ defmodule LiveFilter.Params.Parser do
     existing_fields = MapSet.new(existing_filters, & &1.field)
 
     configs
-    |> Enum.filter(& &1.always_on)
+    |> Enum.filter(&should_auto_create?/1)
     |> Enum.reject(&MapSet.member?(existing_fields, &1.field))
     |> Enum.map(&Filter.new/1)
   end
+
+  # Auto-create filter if always_on, or if default_visible with a non-nil default_value
+  defp should_auto_create?(%{always_on: true}), do: true
+
+  defp should_auto_create?(%{default_visible: true, default_value: val}) when not is_nil(val),
+    do: true
+
+  defp should_auto_create?(_), do: false
 end

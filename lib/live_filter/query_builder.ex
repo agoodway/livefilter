@@ -5,7 +5,7 @@ defmodule LiveFilter.QueryBuilder do
   """
 
   import Kernel, except: [apply: 3]
-  import Ecto.Query, only: [limit: 2, offset: 2, exclude: 2]
+  import Ecto.Query, only: [limit: 2, offset: 2, exclude: 2, where: 3]
 
   alias LiveFilter.{Filter, Pagination}
   alias LiveFilter.Params.Parser
@@ -36,15 +36,30 @@ defmodule LiveFilter.QueryBuilder do
     allowed_fields = Keyword.get(opts, :allowed_fields)
     schema = Keyword.get(opts, :schema)
 
-    ast_maps =
+    valid_filters =
       filters
       |> maybe_filter_allowed(allowed_fields)
       |> Enum.reject(&empty_value?/1)
-      |> Enum.flat_map(&to_ast_maps/1)
 
+    # Handle :not_in filters directly (PgRest's NOT wrapper has issues with complex queries)
+    {not_in_filters, other_filters} = Enum.split_with(valid_filters, &(&1.operator == :not_in))
+    query = apply_not_in_filters(query, not_in_filters)
+
+    # Convert remaining filters to PgRest AST maps
+    ast_maps = Enum.flat_map(other_filters, &to_ast_maps/1)
     ast_maps = maybe_cast(ast_maps, schema)
 
     PgRest.Filter.apply_all(query, ast_maps)
+  end
+
+  # Apply :not_in filters directly using Ecto.Query
+  # This avoids PgRest's NOT wrapper which has issues with complex queries containing subqueries
+  defp apply_not_in_filters(query, []), do: query
+
+  defp apply_not_in_filters(query, filters) do
+    Enum.reduce(filters, query, fn %Filter{field: field, value: values}, q ->
+      where(q, [r], field(r, ^field) not in ^values)
+    end)
   end
 
   @doc """
@@ -92,6 +107,8 @@ defmodule LiveFilter.QueryBuilder do
        when op in [:ilike, :like] and is_binary(value) do
     [%{field: Atom.to_string(field), operator: op, value: "%#{value}%"}]
   end
+
+  # Note: :not_in is handled separately in apply/3 to avoid PgRest NOT wrapper issues
 
   defp to_ast_maps(%Filter{field: field, operator: op, value: value}) do
     [%{field: Atom.to_string(field), operator: op, value: value}]

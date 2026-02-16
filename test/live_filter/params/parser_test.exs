@@ -34,6 +34,47 @@ defmodule LiveFilter.Params.ParserTest do
       assert [%Filter{field: :tags, operator: :in, value: ["urgent", "bug"]}] = filters
     end
 
+    test "parses select :in filter with multiple values" do
+      configs = [
+        LiveFilter.select(:status,
+          label: "Status",
+          options: ~w(pending active shipped),
+          operators: [:eq, :neq, :in, :not_in]
+        )
+      ]
+
+      {filters, _} = Parser.from_params(%{"status" => "in.(active,pending)"}, configs)
+
+      assert [%Filter{field: :status, operator: :in, value: ["active", "pending"]}] = filters
+    end
+
+    test "parses select :not_in filter" do
+      configs = [
+        LiveFilter.select(:status,
+          label: "Status",
+          options: ~w(draft active shipped),
+          operators: [:eq, :neq, :in, :not_in]
+        )
+      ]
+
+      {filters, _} = Parser.from_params(%{"status" => "not_in.(draft)"}, configs)
+      assert [%Filter{field: :status, operator: :not_in, value: ["draft"]}] = filters
+    end
+
+    test "parses select :not_in filter with multiple values" do
+      configs = [
+        LiveFilter.select(:status,
+          label: "Status",
+          options: ~w(draft active shipped cancelled),
+          operators: [:eq, :neq, :in, :not_in]
+        )
+      ]
+
+      {filters, _} = Parser.from_params(%{"status" => "not_in.(draft,cancelled)"}, configs)
+
+      assert [%Filter{field: :status, operator: :not_in, value: ["draft", "cancelled"]}] = filters
+    end
+
     test "parses boolean filter" do
       {filters, _} = Parser.from_params(%{"urgent" => "is.true"}, @configs)
       assert [%Filter{field: :urgent, operator: :is, value: true}] = filters
