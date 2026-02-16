@@ -23,7 +23,9 @@ defmodule DemoWeb.TaskLive.Index do
           {"Done", "done"}
         ],
         icon: "hero-signal",
-        default_visible: true
+        default_visible: true,
+        operators: [:eq, :neq, :in, :not_in],
+        mode: :command
       ),
       LiveFilter.select(:project_id,
         label: "Project",
