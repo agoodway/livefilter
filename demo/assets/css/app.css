@@ -5,7 +5,7 @@
 @source "../css";
 @source "../js";
 @source "../../lib/demo_web";
-@source "../../../lib/live_filter";
+@source "../../deps/live_filter/lib";
 @source "../../deps/daisy_ui_components";
 
 /* A Tailwind plugin that makes "hero-#{ICON}" classes available.
