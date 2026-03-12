@@ -36,6 +36,32 @@ defmodule LiveFilter.IntegrationTest do
     end
   end
 
+  describe "init/4 with context" do
+    test "stores context in live_filter assign" do
+      socket = %Phoenix.LiveView.Socket{assigns: %{__changed__: %{}}}
+      context = %{board_id: "abc-123"}
+      socket = LiveFilter.init(socket, @configs, [], context: context)
+
+      assert socket.assigns.live_filter.context == %{board_id: "abc-123"}
+    end
+
+    test "defaults context to empty map when not provided" do
+      socket = %Phoenix.LiveView.Socket{assigns: %{__changed__: %{}}}
+      socket = LiveFilter.init(socket, @configs)
+
+      assert socket.assigns.live_filter.context == %{}
+    end
+
+    test "preserves existing ID when context is provided" do
+      socket = %Phoenix.LiveView.Socket{assigns: %{__changed__: %{}}}
+      socket = LiveFilter.init(socket, @configs, [], context: %{board_id: "abc"})
+      id = socket.assigns.live_filter.id
+
+      socket = LiveFilter.init(socket, @configs, [], context: %{board_id: "abc"})
+      assert socket.assigns.live_filter.id == id
+    end
+  end
+
   describe "from_params/2" do
     test "parses URL params into filters and remaining" do
       params = %{"status" => "eq.active", "page" => "2"}

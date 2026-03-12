@@ -147,6 +147,11 @@ const DropdownItem = {
       const dropdown = closestElement(el, ".dropdown")
       const trigger = querySelector(dropdown, '[tabindex="0"]')
       trigger?.blur()
+      // Also blur any focused element inside the dropdown (e.g. async search input)
+      // to ensure focus-within closes the dropdown
+      if (document.activeElement && dropdown?.contains(document.activeElement)) {
+        document.activeElement.blur()
+      }
     }
 
     const getDropdownItems = () =>

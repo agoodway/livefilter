@@ -13,6 +13,7 @@ defmodule LiveFilter.Types do
           | :datetime
           | :boolean
           | :radio_group
+          | :async_select
 
   @type operator ::
           :eq

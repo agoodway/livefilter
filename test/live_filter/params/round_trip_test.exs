@@ -69,6 +69,26 @@ defmodule LiveFilter.Params.RoundTripTest do
       assert params == re_params
     end
 
+    test "async_select eq filter round-trips" do
+      config =
+        LiveFilter.async_select(:company_id,
+          label: "Employer",
+          search_fn: fn _q, _ctx -> [] end,
+          load_label_fn: fn _v, _ctx -> :error end
+        )
+
+      original = [Filter.new(config, :eq, "uuid-123")]
+
+      params = Serializer.to_params(original)
+      assert params == %{"company_id" => "eq.uuid-123"}
+
+      {parsed, _} = Parser.from_params(params, [config])
+      re_params = Serializer.to_params(parsed)
+
+      assert params == re_params
+      assert [%Filter{field: :company_id, operator: :eq, value: "uuid-123"}] = parsed
+    end
+
     test "multiple filters round-trip" do
       status_config = Enum.find(@configs, &(&1.field == :status))
       urgent_config = Enum.find(@configs, &(&1.field == :urgent))

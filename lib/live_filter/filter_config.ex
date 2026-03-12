@@ -36,7 +36,13 @@ defmodule LiveFilter.FilterConfig do
           inline_threshold: non_neg_integer(),
           # DateTime filter options
           time_format: :twelve_hour | :twenty_four_hour,
-          minute_step: pos_integer()
+          minute_step: pos_integer(),
+          # AsyncSelect filter options
+          search_fn: (String.t(), map() -> [{String.t(), String.t()}]) | nil,
+          load_label_fn: (String.t(), map() -> {:ok, String.t()} | :error) | nil,
+          min_chars: non_neg_integer(),
+          debounce: non_neg_integer(),
+          empty_message: String.t()
         }
 
   defstruct [
@@ -71,6 +77,12 @@ defmodule LiveFilter.FilterConfig do
     inline_threshold: 4,
     # DateTime filter options
     time_format: :twelve_hour,
-    minute_step: 1
+    minute_step: 1,
+    # AsyncSelect filter options
+    search_fn: nil,
+    load_label_fn: nil,
+    min_chars: 1,
+    debounce: 200,
+    empty_message: "No results found"
   ]
 end

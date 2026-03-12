@@ -13,5 +13,6 @@ defmodule LiveFilter.TestRouter do
     pipe_through(:browser)
     live("/test", TestLive)
     live("/test-default-visible", TestLiveDefaultVisible)
+    live("/test-async-select", TestLiveAsyncSelect)
   end
 end

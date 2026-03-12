@@ -16,6 +16,7 @@ defmodule LiveFilter.Bar do
   alias LiveFilter.{DateUtils, Filter, Inputs, Operators, OptionHelpers, Params.Serializer, Theme}
 
   alias LiveFilter.Components.{
+    AsyncSelect,
     Boolean,
     Calendar,
     DateRange,
@@ -45,7 +46,11 @@ defmodule LiveFilter.Bar do
        date_selecting_start: true,
        date_temp_start: nil,
        date_temp_end: nil,
-       date_current_month: Date.utc_today()
+       date_current_month: Date.utc_today(),
+       # Async select state
+       async_search_text: %{},
+       async_options: %{},
+       resolved_labels: %{}
      )}
   end
 
@@ -55,7 +60,8 @@ defmodule LiveFilter.Bar do
      socket
      |> assign(assigns)
      |> assign_defaults()
-     |> assign_filter_state()}
+     |> assign_filter_state()
+     |> hydrate_async_labels()}
   end
 
   defp assign_defaults(socket) do
@@ -168,6 +174,9 @@ defmodule LiveFilter.Bar do
         date_selecting_start={@date_selecting_start}
         date_temp_start={@date_temp_start}
         date_temp_end={@date_temp_end}
+        async_search_text={@async_search_text}
+        async_options={@async_options}
+        resolved_labels={@resolved_labels}
         myself={@myself}
       />
 
@@ -223,8 +232,18 @@ defmodule LiveFilter.Bar do
     # RadioGroup: inline pills when options <= threshold, otherwise dropdown
     is_radio_group_dropdown = radio_group_needs_dropdown?(assigns.filter.config)
 
+    is_async_select = filter_type == :async_select
+
     is_dropdown =
-      filter_type in [:select, :multi_select, :boolean, :date_range, :datetime_range, :datetime] or
+      filter_type in [
+        :select,
+        :multi_select,
+        :boolean,
+        :date_range,
+        :datetime_range,
+        :datetime,
+        :async_select
+      ] or
         is_radio_group_dropdown
 
     # Select with :in/:not_in operator should render as multi-select
@@ -243,7 +262,8 @@ defmodule LiveFilter.Bar do
         is_date_range: filter_type in [:date_range, :datetime_range],
         is_datetime_range: filter_type == :datetime_range,
         is_datetime: filter_type == :datetime,
-        is_radio_group_dropdown: is_radio_group_dropdown
+        is_radio_group_dropdown: is_radio_group_dropdown,
+        is_async_select: is_async_select
       })
       |> assign_new(:show_calendar, fn -> false end)
       |> assign_new(:date_current_month, fn -> Date.utc_today() end)
@@ -251,6 +271,9 @@ defmodule LiveFilter.Bar do
       |> assign_new(:date_temp_start, fn -> nil end)
       |> assign_new(:date_temp_end, fn -> nil end)
       |> assign_new(:datetime_current_month, fn -> Date.utc_today() end)
+      |> assign_new(:async_search_text, fn -> %{} end)
+      |> assign_new(:async_options, fn -> %{} end)
+      |> assign_new(:resolved_labels, fn -> %{} end)
 
     # Command mode with dropdown filters needs separate dropdown triggers for operator and value
     if assigns.mode == :command and is_dropdown do
@@ -286,12 +309,16 @@ defmodule LiveFilter.Bar do
         is_radio_group_dropdown={@is_radio_group_dropdown}
         is_datetime={@is_datetime}
         is_date_range={@is_date_range}
+        is_async_select={@is_async_select}
         show_calendar={@show_calendar}
         date_current_month={@date_current_month}
         date_selecting_start={@date_selecting_start}
         date_temp_start={@date_temp_start}
         date_temp_end={@date_temp_end}
         datetime_current_month={@datetime_current_month}
+        async_search_text={@async_search_text}
+        async_options={@async_options}
+        resolved_labels={@resolved_labels}
         myself={@myself}
       />
 
@@ -336,7 +363,7 @@ defmodule LiveFilter.Bar do
         <.operator_section :if={@mode == :command} filter={@filter} theme_classes={@theme_classes} myself={@myself} />
 
         <div class={[@theme_classes.values, !@filter.config.removable && "pr-2.5"]}>
-          <.value_display filter={@filter} theme_classes={@theme_classes} mode={@mode} myself={@myself} />
+          <.value_display filter={@filter} theme_classes={@theme_classes} mode={@mode} resolved_labels={@resolved_labels} myself={@myself} />
         </div>
       </div>
 
@@ -367,6 +394,7 @@ defmodule LiveFilter.Bar do
         temp_end={@date_temp_end}
         myself={@myself}
       />
+      <.async_select_dropdown :if={@is_async_select} filter={@filter} async_search_text={@async_search_text} async_options={@async_options} myself={@myself} />
       <.inline_editor :if={@editing} filter={@filter} myself={@myself} />
     </div>
     """
@@ -448,7 +476,7 @@ defmodule LiveFilter.Bar do
         phx-hook="DropdownTrigger"
         id={"value-trigger-#{@filter.id}"}
       >
-        <.value_display_command filter={@filter} theme_classes={@theme_classes} />
+        <.value_display_command filter={@filter} theme_classes={@theme_classes} resolved_labels={@resolved_labels} />
       </div>
 
       <.select_dropdown :if={@is_select} filter={@filter} theme_classes={@theme_classes} select_search={@select_search} myself={@myself} />
@@ -466,6 +494,7 @@ defmodule LiveFilter.Bar do
         temp_end={@date_temp_end}
         myself={@myself}
       />
+      <.async_select_dropdown :if={@is_async_select} filter={@filter} async_search_text={@async_search_text} async_options={@async_options} myself={@myself} />
     </div>
     """
   end
@@ -578,6 +607,21 @@ defmodule LiveFilter.Bar do
     """
   end
 
+  # AsyncSelect with value - show resolved label
+  defp value_display_command(
+         %{filter: %{config: %{type: :async_select}, value: value}, resolved_labels: labels} =
+           assigns
+       )
+       when not is_nil(value) and value != "" do
+    assigns = assign(assigns, :display_label, Map.get(labels, assigns.filter.id, value))
+
+    ~H"""
+    <span class={@theme_classes.badge}>
+      {@display_label}
+    </span>
+    """
+  end
+
   defp value_display_command(%{filter: %{value: value}} = assigns)
        when not is_nil(value) and value != "" do
     ~H"""
@@ -589,6 +633,10 @@ defmodule LiveFilter.Bar do
     ~H"""
     <span class="text-base-content/60 text-sm italic">Select</span>
     """
+  end
+
+  defp async_select_dropdown(assigns) do
+    AsyncSelect.render(assigns)
   end
 
   defp select_dropdown(assigns) do
@@ -780,6 +828,27 @@ defmodule LiveFilter.Bar do
   end
 
   defp value_display(%{filter: %{config: %{type: :datetime}}} = assigns) do
+    ~H"""
+    <span class="text-base-content/60 text-sm italic cursor-pointer">Select</span>
+    """
+  end
+
+  # AsyncSelect with value - show resolved label
+  defp value_display(
+         %{filter: %{config: %{type: :async_select}, value: value}, resolved_labels: labels} =
+           assigns
+       )
+       when not is_nil(value) and value != "" do
+    assigns = assign(assigns, :display_label, Map.get(labels, assigns.filter.id, value))
+
+    ~H"""
+    <span class={[@theme_classes.badge, "cursor-pointer"]}>
+      {@display_label}
+    </span>
+    """
+  end
+
+  defp value_display(%{filter: %{config: %{type: :async_select}}} = assigns) do
     ~H"""
     <span class="text-base-content/60 text-sm italic cursor-pointer">Select</span>
     """
@@ -1079,15 +1148,35 @@ defmodule LiveFilter.Bar do
 
   defp filter_input(%{filter: %{config: %{type: type}}} = assigns) do
     case type do
-      :text -> Inputs.Text.render(assigns)
-      :number -> Inputs.Number.render(assigns)
-      :select -> Inputs.Select.render(assigns)
-      :multi_select -> Inputs.MultiSelect.render(assigns)
-      :date -> Inputs.Date.render(assigns)
-      :date_range -> Inputs.DateRange.render(assigns)
-      :datetime_range -> Inputs.DateRange.render(assigns)
-      :datetime -> Inputs.DateTime.render(assigns)
-      :boolean -> Inputs.Boolean.render(assigns)
+      :text ->
+        Inputs.Text.render(assigns)
+
+      :number ->
+        Inputs.Number.render(assigns)
+
+      :select ->
+        Inputs.Select.render(assigns)
+
+      :multi_select ->
+        Inputs.MultiSelect.render(assigns)
+
+      :date ->
+        Inputs.Date.render(assigns)
+
+      :date_range ->
+        Inputs.DateRange.render(assigns)
+
+      :datetime_range ->
+        Inputs.DateRange.render(assigns)
+
+      :datetime ->
+        Inputs.DateTime.render(assigns)
+
+      :boolean ->
+        Inputs.Boolean.render(assigns)
+
+      :async_select ->
+        ~H[<span class="text-sm text-base-content/50">Use dropdown to search</span>]
     end
   end
 
@@ -1148,7 +1237,12 @@ defmodule LiveFilter.Bar do
 
     socket =
       socket
-      |> assign(editing_filter_id: nil)
+      |> assign(
+        editing_filter_id: nil,
+        async_search_text: Map.delete(socket.assigns.async_search_text, filter_id),
+        async_options: Map.delete(socket.assigns.async_options, filter_id),
+        resolved_labels: Map.delete(socket.assigns.resolved_labels, filter_id)
+      )
       |> notify_parent(new_filters)
 
     {:noreply, socket}
@@ -1217,6 +1311,57 @@ defmodule LiveFilter.Bar do
     new_filters = update_filter(socket.assigns.filters, filter_id, &%{&1 | value: value})
     select_search = Map.delete(socket.assigns.select_search, filter_id)
     {:noreply, socket |> assign(select_search: select_search) |> notify_parent(new_filters)}
+  end
+
+  def handle_event("async_search", %{"id" => filter_id, "value" => search_text}, socket) do
+    async_search_text = Map.put(socket.assigns.async_search_text, filter_id, search_text)
+    filter = find_filter(socket.assigns.filters, filter_id)
+
+    async_options =
+      if filter && filter.config.type == :async_select &&
+           String.length(search_text) >= filter.config.min_chars do
+        context = socket.assigns.filter[:context] || %{}
+        results = filter.config.search_fn.(search_text, context)
+        Map.put(socket.assigns.async_options, filter_id, results)
+      else
+        Map.put(socket.assigns.async_options, filter_id, [])
+      end
+
+    {:noreply, assign(socket, async_search_text: async_search_text, async_options: async_options)}
+  end
+
+  def handle_event(
+        "async_select_option",
+        %{"id" => filter_id, "value" => value},
+        socket
+      ) do
+    filter = find_filter(socket.assigns.filters, filter_id)
+    context = socket.assigns.filter[:context] || %{}
+
+    label =
+      case filter && filter.config.load_label_fn do
+        nil ->
+          value
+
+        load_fn ->
+          case load_fn.(value, context) do
+            {:ok, l} -> l
+            :error -> value
+          end
+      end
+
+    new_filters = update_filter(socket.assigns.filters, filter_id, &%{&1 | value: value})
+
+    socket =
+      socket
+      |> assign(
+        resolved_labels: Map.put(socket.assigns.resolved_labels, filter_id, label),
+        async_search_text: Map.delete(socket.assigns.async_search_text, filter_id),
+        async_options: Map.delete(socket.assigns.async_options, filter_id)
+      )
+      |> notify_parent(new_filters)
+
+    {:noreply, socket}
   end
 
   def handle_event("change_multi_value", %{"id" => filter_id} = params, socket) do
@@ -1428,6 +1573,13 @@ defmodule LiveFilter.Bar do
         %{f | value: f.config.default_value, operator: f.config.default_operator}
       end)
 
+    socket =
+      assign(socket,
+        async_search_text: %{},
+        async_options: %{},
+        resolved_labels: %{}
+      )
+
     {:noreply, notify_parent(socket, baseline_filters)}
   end
 
@@ -1458,6 +1610,34 @@ defmodule LiveFilter.Bar do
 
     new_filters = update_filter(socket.assigns.filters, filter_id, &%{&1 | value: datetime_str})
     {:noreply, notify_parent(socket, new_filters)}
+  end
+
+  defp hydrate_async_labels(socket) do
+    filters = socket.assigns.filters
+    resolved = socket.assigns[:resolved_labels] || %{}
+
+    unresolved =
+      Enum.filter(filters, fn f ->
+        f.config.type == :async_select and
+          f.value != nil and f.value != "" and
+          not Map.has_key?(resolved, f.id)
+      end)
+
+    if unresolved == [] do
+      socket
+    else
+      context = socket.assigns.filter[:context] || %{}
+
+      new_labels =
+        Enum.reduce(unresolved, resolved, fn filter, acc ->
+          case filter.config.load_label_fn.(filter.value, context) do
+            {:ok, label} -> Map.put(acc, filter.id, label)
+            :error -> acc
+          end
+        end)
+
+      assign(socket, :resolved_labels, new_labels)
+    end
   end
 
   defp find_filter(filters, filter_id) do

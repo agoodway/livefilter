@@ -161,6 +161,71 @@ defmodule LiveFilterTest do
     end
   end
 
+  describe "async_select/2" do
+    defp search_fn, do: fn _query, _ctx -> [] end
+    defp load_label_fn, do: fn _value, _ctx -> :error end
+
+    test "returns async_select FilterConfig with defaults" do
+      config =
+        LiveFilter.async_select(:company_id,
+          label: "Employer",
+          search_fn: search_fn(),
+          load_label_fn: load_label_fn()
+        )
+
+      assert %FilterConfig{} = config
+      assert config.field == :company_id
+      assert config.type == :async_select
+      assert config.label == "Employer"
+      assert config.operators == [:eq]
+      assert config.default_operator == :eq
+      assert is_function(config.search_fn, 2)
+      assert is_function(config.load_label_fn, 2)
+      assert config.min_chars == 1
+      assert config.debounce == 200
+      assert config.empty_message == "No results found"
+    end
+
+    test "supports custom options" do
+      config =
+        LiveFilter.async_select(:company_id,
+          search_fn: search_fn(),
+          load_label_fn: load_label_fn(),
+          min_chars: 2,
+          debounce: 300,
+          placeholder: "Find employer...",
+          empty_message: "No employers found"
+        )
+
+      assert config.min_chars == 2
+      assert config.debounce == 300
+      assert config.placeholder == "Find employer..."
+      assert config.empty_message == "No employers found"
+    end
+
+    test "raises without search_fn" do
+      assert_raise ArgumentError, ~r/requires :search_fn/, fn ->
+        LiveFilter.async_select(:company_id, load_label_fn: load_label_fn())
+      end
+    end
+
+    test "raises without load_label_fn" do
+      assert_raise ArgumentError, ~r/requires :load_label_fn/, fn ->
+        LiveFilter.async_select(:company_id, search_fn: search_fn())
+      end
+    end
+
+    test "auto-generates label from field name" do
+      config =
+        LiveFilter.async_select(:company_id,
+          search_fn: search_fn(),
+          load_label_fn: load_label_fn()
+        )
+
+      assert config.label == "Company_id"
+    end
+  end
+
   describe "Operators.options_for_type/1" do
     test "returns options for each type" do
       assert [{:ilike, "contains"} | _] = Operators.options_for_type(:text)

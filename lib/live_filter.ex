@@ -192,16 +192,72 @@ defmodule LiveFilter do
     )
   end
 
+  @doc """
+  Creates an async select filter config for search-as-you-type selection.
+
+  Default operators: `[:eq]`, default: `:eq`.
+
+  Requires `:search_fn` and `:load_label_fn` callbacks.
+
+  ## Callbacks
+
+  - `:search_fn` - `fn(query, context) -> [{value, label}]` — called when user types in the dropdown
+  - `:load_label_fn` - `fn(value, context) -> {:ok, label} | :error` — called to resolve display label from a stored value (e.g., on URL reload)
+
+  ## Options
+
+  - `:min_chars` - Minimum characters before searching (default: 1)
+  - `:debounce` - Debounce delay in ms (default: 200)
+  - `:placeholder` - Search input placeholder (default: "Search...")
+  - `:empty_message` - Message when no results found (default: "No results found")
+  """
+  @spec async_select(atom(), keyword()) :: FilterConfig.t()
+  def async_select(field, opts \\ []) do
+    validate_async_select_options!(field, opts)
+
+    config =
+      build_config(field, :async_select, opts,
+        operators: [:eq],
+        default_operator: :eq
+      )
+
+    %{
+      config
+      | search_fn: Keyword.fetch!(opts, :search_fn),
+        load_label_fn: Keyword.fetch!(opts, :load_label_fn),
+        min_chars: Keyword.get(opts, :min_chars, 1),
+        debounce: Keyword.get(opts, :debounce, 200),
+        empty_message: Keyword.get(opts, :empty_message, "No results found")
+    }
+  end
+
+  defp validate_async_select_options!(field, opts) do
+    if Keyword.get(opts, :always_on, false) do
+      raise ArgumentError, "async_select filter :#{field} does not support always_on: true"
+    end
+
+    unless Keyword.has_key?(opts, :search_fn) do
+      raise ArgumentError, "async_select filter :#{field} requires :search_fn"
+    end
+
+    unless Keyword.has_key?(opts, :load_label_fn) do
+      raise ArgumentError, "async_select filter :#{field} requires :load_label_fn"
+    end
+  end
+
   # --- LiveView Integration ---
 
   @doc """
   Initializes LiveFilter state on a socket.
 
   Assigns `:live_filter` with config, filters, and a unique ID.
+  Accepts an optional `context:` keyword that is stored and passed to async_select callbacks.
   """
-  @spec init(Phoenix.LiveView.Socket.t(), [FilterConfig.t()], [Filter.t()]) ::
+  @spec init(Phoenix.LiveView.Socket.t(), [FilterConfig.t()], [Filter.t()], keyword()) ::
           Phoenix.LiveView.Socket.t()
-  def init(socket, config, filters \\ []) do
+  def init(socket, config, filters \\ [], opts \\ []) do
+    context = Keyword.get(opts, :context, %{})
+
     # Preserve existing ID across push_patch to maintain input focus
     existing_id = get_in(socket.assigns, [:live_filter, :id])
 
@@ -212,7 +268,8 @@ defmodule LiveFilter do
     assign(socket, :live_filter, %{
       config: config,
       filters: filters,
-      id: id
+      id: id,
+      context: context
     })
   end
 
