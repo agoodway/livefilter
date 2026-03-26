@@ -1065,6 +1065,7 @@ defmodule LiveFilter.Bar do
     ~H"""
     <div class="dropdown dropdown-bottom relative focus-within:z-[100]">
       <button
+        type="button"
         tabindex="0"
         class="btn btn-sm btn-ghost gap-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
         aria-haspopup="listbox"
