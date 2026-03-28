@@ -4,7 +4,7 @@
 #
 
 app = 'livefilter'
-primary_region = 'ord'
+primary_region = 'iad'
 kill_signal = 'SIGTERM'
 
 [build]
@@ -30,7 +30,7 @@ kill_signal = 'SIGTERM'
     soft_limit = 1000
 
 [[vm]]
-  memory = '1gb'
+  memory = '512mb'
   cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 1024
+  memory_mb = 512
