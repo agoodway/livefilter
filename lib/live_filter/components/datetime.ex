@@ -278,40 +278,7 @@ defmodule LiveFilter.Components.Datetime do
 
   # Helper functions for parsing datetime values
 
-  defp parse_datetime_value(nil, time_format), do: {nil, default_hour(time_format), 0, :am}
-  defp parse_datetime_value("", time_format), do: {nil, default_hour(time_format), 0, :am}
-
-  defp parse_datetime_value(datetime_str, time_format) when is_binary(datetime_str) do
-    case NaiveDateTime.from_iso8601(datetime_str) do
-      {:ok, ndt} ->
-        date = NaiveDateTime.to_date(ndt)
-        {hour, minute} = {ndt.hour, ndt.minute}
-
-        if time_format == :twelve_hour do
-          {display_hour, period} = to_12_hour(hour)
-          {date, display_hour, minute, period}
-        else
-          {date, hour, minute, :am}
-        end
-
-      _ ->
-        {nil, default_hour(time_format), 0, :am}
-    end
-  end
-
-  defp parse_datetime_value(%NaiveDateTime{} = ndt, time_format) do
-    date = NaiveDateTime.to_date(ndt)
-    {hour, minute} = {ndt.hour, ndt.minute}
-
-    if time_format == :twelve_hour do
-      {display_hour, period} = to_12_hour(hour)
-      {date, display_hour, minute, period}
-    else
-      {date, hour, minute, :am}
-    end
-  end
-
-  defp parse_datetime_value(_, time_format), do: {nil, default_hour(time_format), 0, :am}
+  defp parse_datetime_value(value, time_format), do: parse_value(value, time_format)
 
   defp default_hour(:twelve_hour), do: 12
   defp default_hour(:twenty_four_hour), do: 0

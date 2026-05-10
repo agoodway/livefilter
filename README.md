@@ -1,14 +1,29 @@
 # LiveFilter
 
-Composable, URL-driven filtering for LiveView with Linear/Notion-style UI filters and PostgREST-compatible parameters for shareable filter states using [PgRest](https://github.com/agoodway/pgrest)
+[![Hex.pm](https://img.shields.io/hexpm/v/livefilter.svg)](https://hex.pm/packages/livefilter)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-blue.svg)](https://hexdocs.pm/livefilter)
+[![License](https://img.shields.io/hexpm/l/livefilter.svg)](https://github.com/agoodway/livefilter/blob/main/LICENSE)
+
+> Composable, URL-driven filtering for Phoenix LiveView with Linear/Notion-style UI filters and PostgREST-compatible parameters for shareable filter states using [PgRest](https://github.com/agoodway/pgrest).
 
 ## Demo App
 
 See [`demo/`](demo/) for an interactive filter explorer built with Phoenix LiveView.
 
+The repo ships a Hivemind wrapper that serves the demo at
+[`localhost:4032`](http://localhost:4032):
+
+```bash
+bin/livefilter start
+bin/livefilter stop
+bin/livefilter console
+```
+
+Requires a local Postgres reachable at `localhost:5432` with a `demo_dev`
+database (`mix ecto.setup` from `demo/` creates it). Or run the demo directly:
+
 ```bash
 cd demo && mix setup && mix phx.server
-# Visit http://localhost:4000
 ```
 
 ## Prerequisites
@@ -19,12 +34,12 @@ cd demo && mix setup && mix phx.server
 
 ## Installation
 
-Add `live_filter` to your dependencies in `mix.exs`:
+Add `livefilter` to your dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:live_filter, "~> 0.1.0"}
+    {:livefilter, "~> 0.1.8"}
   ]
 end
 ```
@@ -96,7 +111,7 @@ def handle_params(params, _uri, socket) do
   {:noreply, socket}
 end
 
-def handle_info({:live_filter, :updated, params}, socket) do
+def handle_info({:livefilter, :updated, params}, socket) do
   all_params = Map.merge(socket.assigns.remaining_params, params)
   {:noreply, push_patch(socket, to: ~p"/tasks?#{all_params}")}
 end
@@ -107,7 +122,7 @@ end
 Use the built-in UI component:
 
 ```heex
-<LiveFilter.bar filter={@live_filter} />
+<LiveFilter.bar filter={@livefilter} />
 ```
 
 Or build your own UI — the param/query layers work independently:
@@ -124,7 +139,7 @@ query = LiveFilter.QueryBuilder.apply(Task, filters, schema: Task, allowed_field
 defp load_data(socket) do
   query =
     Task
-    |> LiveFilter.QueryBuilder.apply(socket.assigns.live_filter.filters,
+    |> LiveFilter.QueryBuilder.apply(socket.assigns.livefilter.filters,
       schema: Task,
       allowed_fields: [:title, :status, :tags, :urgent, :due_date]
     )
@@ -181,7 +196,7 @@ LiveFilter supports two display modes for filter chips:
 Set the mode globally on the bar:
 
 ```heex
-<LiveFilter.bar filter={@live_filter} mode={:command} />
+<LiveFilter.bar filter={@livefilter} mode={:command} />
 ```
 
 Or per-filter in the configuration:
@@ -195,7 +210,7 @@ LiveFilter.number(:estimated_hours, label: "Hours", mode: :command)
 LiveFilter provides preset themes that control the styling of filter chips. Set the theme on the bar:
 
 ```heex
-<LiveFilter.bar filter={@live_filter} theme={:neutral} variant={:neutral} />
+<LiveFilter.bar filter={@livefilter} theme={:neutral} variant={:neutral} />
 ```
 
 ### Available Themes
@@ -223,7 +238,7 @@ The `theme` controls element styling (chip, badge, field, etc.) while `variant` 
 The `:neutral` theme avoids DaisyUI's `btn` component classes entirely, using theme-aware Tailwind utilities instead. This prevents the dark active/focus states that `btn-outline` can produce on light themes:
 
 ```heex
-<LiveFilter.bar filter={@live_filter} theme={:neutral} variant={:neutral} />
+<LiveFilter.bar filter={@livefilter} theme={:neutral} variant={:neutral} />
 ```
 
 This theme uses:
@@ -239,7 +254,7 @@ For Tailwind to generate LiveFilter's theme classes, add the library's templates
 module.exports = {
   content: [
     // ... existing paths ...
-    "../deps/live_filter/**/*.*ex",
+    "../deps/livefilter/**/*.*ex",
   ],
 }
 ```
@@ -310,7 +325,7 @@ Render the paginator:
 Handle page changes:
 
 ```elixir
-def handle_info({:live_filter, :page_changed, pagination_params}, socket) do
+def handle_info({:livefilter, :page_changed, pagination_params}, socket) do
   all_params = Map.merge(filter_params, pagination_params)
   {:noreply, push_patch(socket, to: ~p"/tasks?#{all_params}")}
 end

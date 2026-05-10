@@ -41,14 +41,14 @@ defmodule LiveFilter.TestLive do
   end
 
   @impl true
-  def handle_info({:live_filter, :updated, params}, socket) do
+  def handle_info({:livefilter, :updated, params}, socket) do
     {:noreply, assign(socket, :updated_params, params)}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <LiveFilter.bar filter={@live_filter} />
+    <LiveFilter.bar filter={@livefilter} />
     <div id="updated-params">{inspect(@updated_params)}</div>
     """
   end

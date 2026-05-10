@@ -53,19 +53,21 @@ defmodule Demo.Tasks do
   def create_task_with_assignees(attrs, assignee_ids) do
     Repo.transaction(fn ->
       case create_task(attrs) do
-        {:ok, task} ->
-          Enum.each(assignee_ids, fn assignee_id ->
-            %TaskAssignee{}
-            |> TaskAssignee.changeset(%{task_id: task.id, assignee_id: assignee_id})
-            |> Repo.insert!()
-          end)
-
-          Repo.preload(task, [:project, :assignees])
-
-        {:error, changeset} ->
-          Repo.rollback(changeset)
+        {:ok, task} -> insert_assignees(task, assignee_ids)
+        {:error, changeset} -> Repo.rollback(changeset)
       end
     end)
+  end
+
+  defp insert_assignees(task, assignee_ids) do
+    Enum.each(assignee_ids, &insert_task_assignee(task.id, &1))
+    Repo.preload(task, [:project, :assignees])
+  end
+
+  defp insert_task_assignee(task_id, assignee_id) do
+    %TaskAssignee{}
+    |> TaskAssignee.changeset(%{task_id: task_id, assignee_id: assignee_id})
+    |> Repo.insert!()
   end
 
   @doc """

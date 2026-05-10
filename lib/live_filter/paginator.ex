@@ -8,7 +8,7 @@ defmodule LiveFilter.Paginator do
   - Prev/Next buttons
   - Configurable page number stepper
 
-  Notifies the parent via `{:live_filter, :page_changed, params}` when pagination changes.
+  Notifies the parent via `{:livefilter, :page_changed, params}` when pagination changes.
 
   ## Example
 
@@ -273,6 +273,6 @@ defmodule LiveFilter.Paginator do
 
   defp notify_parent(pagination) do
     params = Serializer.pagination_to_params(pagination)
-    send(self(), {:live_filter, :page_changed, params})
+    send(self(), {:livefilter, :page_changed, params})
   end
 end

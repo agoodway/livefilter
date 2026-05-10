@@ -1,6 +1,10 @@
 defmodule LiveFilter.FilterConfig do
   @moduledoc """
   Defines a filterable field — its type, allowed operators, label, and options.
+
+  The struct intentionally aggregates per-field knobs across every filter
+  type (text, select, async, datetime, etc.). Splitting into smaller structs
+  would force callers to know the type before constructing.
   """
 
   @type icon_fn :: (map() -> Phoenix.LiveView.Rendered.t()) | nil

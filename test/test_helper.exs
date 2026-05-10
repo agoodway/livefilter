@@ -1,4 +1,4 @@
-Application.put_env(:live_filter, LiveFilter.TestEndpoint,
+Application.put_env(:livefilter, LiveFilter.TestEndpoint,
   url: [host: "localhost"],
   secret_key_base: String.duplicate("test_secret", 8),
   live_view: [signing_salt: "test_live_view_salt"],

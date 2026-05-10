@@ -72,7 +72,7 @@ defmodule LiveFilter.PaginatorTest do
     test "valid page sends notification" do
       socket = build_socket(%Pagination{limit: 25, offset: 0, total_count: 100})
       assert {:noreply, _socket} = Paginator.handle_event("go_to_page", %{"page" => "3"}, socket)
-      assert_received {:live_filter, :page_changed, %{"limit" => "25", "offset" => "50"}}
+      assert_received {:livefilter, :page_changed, %{"limit" => "25", "offset" => "50"}}
     end
 
     test "invalid page string is ignored" do
@@ -81,19 +81,19 @@ defmodule LiveFilter.PaginatorTest do
       assert {:noreply, _socket} =
                Paginator.handle_event("go_to_page", %{"page" => "abc"}, socket)
 
-      refute_received {:live_filter, :page_changed, _}
+      refute_received {:livefilter, :page_changed, _}
     end
 
     test "page 0 is ignored" do
       socket = build_socket(%Pagination{limit: 25, offset: 0, total_count: 100})
       assert {:noreply, _socket} = Paginator.handle_event("go_to_page", %{"page" => "0"}, socket)
-      refute_received {:live_filter, :page_changed, _}
+      refute_received {:livefilter, :page_changed, _}
     end
 
     test "negative page is ignored" do
       socket = build_socket(%Pagination{limit: 25, offset: 0, total_count: 100})
       assert {:noreply, _socket} = Paginator.handle_event("go_to_page", %{"page" => "-1"}, socket)
-      refute_received {:live_filter, :page_changed, _}
+      refute_received {:livefilter, :page_changed, _}
     end
 
     test "ellipsis string is ignored" do
@@ -102,7 +102,7 @@ defmodule LiveFilter.PaginatorTest do
       assert {:noreply, _socket} =
                Paginator.handle_event("go_to_page", %{"page" => "..."}, socket)
 
-      refute_received {:live_filter, :page_changed, _}
+      refute_received {:livefilter, :page_changed, _}
     end
   end
 
@@ -113,7 +113,7 @@ defmodule LiveFilter.PaginatorTest do
       assert {:noreply, _socket} =
                Paginator.handle_event("change_limit", %{"limit" => "50"}, socket)
 
-      assert_received {:live_filter, :page_changed, %{"limit" => "50", "offset" => "0"}}
+      assert_received {:livefilter, :page_changed, %{"limit" => "50", "offset" => "0"}}
     end
 
     test "invalid limit string is ignored" do
@@ -122,7 +122,7 @@ defmodule LiveFilter.PaginatorTest do
       assert {:noreply, _socket} =
                Paginator.handle_event("change_limit", %{"limit" => "abc"}, socket)
 
-      refute_received {:live_filter, :page_changed, _}
+      refute_received {:livefilter, :page_changed, _}
     end
 
     test "limit 0 is ignored" do
@@ -131,7 +131,7 @@ defmodule LiveFilter.PaginatorTest do
       assert {:noreply, _socket} =
                Paginator.handle_event("change_limit", %{"limit" => "0"}, socket)
 
-      refute_received {:live_filter, :page_changed, _}
+      refute_received {:livefilter, :page_changed, _}
     end
 
     test "negative limit is ignored" do
@@ -140,7 +140,7 @@ defmodule LiveFilter.PaginatorTest do
       assert {:noreply, _socket} =
                Paginator.handle_event("change_limit", %{"limit" => "-10"}, socket)
 
-      refute_received {:live_filter, :page_changed, _}
+      refute_received {:livefilter, :page_changed, _}
     end
   end
 
@@ -148,13 +148,13 @@ defmodule LiveFilter.PaginatorTest do
     test "sends notification with decremented offset" do
       socket = build_socket(%Pagination{limit: 25, offset: 50, total_count: 100})
       assert {:noreply, _socket} = Paginator.handle_event("prev_page", %{}, socket)
-      assert_received {:live_filter, :page_changed, %{"limit" => "25", "offset" => "25"}}
+      assert_received {:livefilter, :page_changed, %{"limit" => "25", "offset" => "25"}}
     end
 
     test "clamps to offset 0 when on first page" do
       socket = build_socket(%Pagination{limit: 25, offset: 0, total_count: 100})
       assert {:noreply, _socket} = Paginator.handle_event("prev_page", %{}, socket)
-      assert_received {:live_filter, :page_changed, %{"limit" => "25", "offset" => "0"}}
+      assert_received {:livefilter, :page_changed, %{"limit" => "25", "offset" => "0"}}
     end
   end
 
@@ -162,7 +162,7 @@ defmodule LiveFilter.PaginatorTest do
     test "sends notification with incremented offset" do
       socket = build_socket(%Pagination{limit: 25, offset: 0, total_count: 100})
       assert {:noreply, _socket} = Paginator.handle_event("next_page", %{}, socket)
-      assert_received {:live_filter, :page_changed, %{"limit" => "25", "offset" => "25"}}
+      assert_received {:livefilter, :page_changed, %{"limit" => "25", "offset" => "25"}}
     end
   end
 

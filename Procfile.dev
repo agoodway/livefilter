@@ -1,0 +1,1 @@
+server: cd demo && PORT=4032 elixir --sname livefilter_demo --cookie livefilter_demo_dev -S mix phx.server

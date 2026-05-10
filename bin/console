@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+iex --sname "debug_$$" --cookie livefilter_demo_dev --remsh "livefilter_demo@$(hostname -s)"

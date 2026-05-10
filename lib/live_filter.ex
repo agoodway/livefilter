@@ -250,7 +250,7 @@ defmodule LiveFilter do
   @doc """
   Initializes LiveFilter state on a socket.
 
-  Assigns `:live_filter` with config, filters, and a unique ID.
+  Assigns `:livefilter` with config, filters, and a unique ID.
   Accepts an optional `context:` keyword that is stored and passed to async_select callbacks.
   """
   @spec init(Phoenix.LiveView.Socket.t(), [FilterConfig.t()], [Filter.t()], keyword()) ::
@@ -259,13 +259,13 @@ defmodule LiveFilter do
     context = Keyword.get(opts, :context, %{})
 
     # Preserve existing ID across push_patch to maintain input focus
-    existing_id = get_in(socket.assigns, [:live_filter, :id])
+    existing_id = get_in(socket.assigns, [:livefilter, :id])
 
     id =
       existing_id ||
         "live-filter-" <> (:crypto.strong_rand_bytes(4) |> Base.url_encode64(padding: false))
 
-    assign(socket, :live_filter, %{
+    assign(socket, :livefilter, %{
       config: config,
       filters: filters,
       id: id,
@@ -397,10 +397,10 @@ defmodule LiveFilter do
 
   ## Example
 
-      <LiveFilter.bar filter={@live_filter} />
-      <LiveFilter.bar filter={@live_filter} mode={:command} />
-      <LiveFilter.bar filter={@live_filter} mode={:command} theme={:bordered} />
-      <LiveFilter.bar filter={@live_filter} variant={:ghost} />
+      <LiveFilter.bar filter={@livefilter} />
+      <LiveFilter.bar filter={@livefilter} mode={:command} />
+      <LiveFilter.bar filter={@livefilter} mode={:command} theme={:bordered} />
+      <LiveFilter.bar filter={@livefilter} variant={:ghost} />
   """
   attr(:filter, :map, required: true)
   attr(:mode, :atom, default: :basic)

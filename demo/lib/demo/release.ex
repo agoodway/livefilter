@@ -17,17 +17,18 @@ defmodule Demo.Release do
     load_app()
 
     for repo <- repos() do
-      {:ok, _, _} =
-        Ecto.Migrator.with_repo(repo, fn repo ->
-          seed_file = Application.app_dir(@app, "priv/repo/seeds.exs")
+      {:ok, _, _} = Ecto.Migrator.with_repo(repo, &load_seeds/1)
+    end
+  end
 
-          if File.exists?(seed_file) do
-            Code.eval_file(seed_file)
-            IO.puts("Seeds loaded for #{inspect(repo)}")
-          else
-            IO.puts("No seed file found at #{seed_file}")
-          end
-        end)
+  defp load_seeds(repo) do
+    seed_file = Application.app_dir(@app, "priv/repo/seeds.exs")
+
+    if File.exists?(seed_file) do
+      Code.eval_file(seed_file)
+      IO.puts("Seeds loaded for #{inspect(repo)}")
+    else
+      IO.puts("No seed file found at #{seed_file}")
     end
   end
 

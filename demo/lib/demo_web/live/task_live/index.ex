@@ -71,7 +71,7 @@ defmodule DemoWeb.TaskLive.Index do
 
   @impl true
   def handle_info(
-        {:live_filter, :updated, params},
+        {:livefilter, :updated, params},
         %{assigns: %{remaining_params: remaining_params, pagination: %{limit: limit}}} = socket
       ) do
     pagination_params = %{"limit" => to_string(limit), "offset" => "0"}
@@ -80,8 +80,8 @@ defmodule DemoWeb.TaskLive.Index do
   end
 
   def handle_info(
-        {:live_filter, :page_changed, pagination_params},
-        %{assigns: %{remaining_params: remaining_params, live_filter: %{filters: filters}}} =
+        {:livefilter, :page_changed, pagination_params},
+        %{assigns: %{remaining_params: remaining_params, livefilter: %{filters: filters}}} =
           socket
       ) do
     filter_params = Serializer.to_params(filters)
@@ -89,9 +89,7 @@ defmodule DemoWeb.TaskLive.Index do
     {:noreply, push_patch(socket, to: LiveFilter.to_path("/tasks", all_params))}
   end
 
-  defp load_tasks(
-         %{assigns: %{pagination: pagination, live_filter: %{filters: filters}}} = socket
-       ) do
+  defp load_tasks(%{assigns: %{pagination: pagination, livefilter: %{filters: filters}}} = socket) do
     base_query =
       Task
       |> QueryBuilder.apply(filters,
@@ -137,7 +135,7 @@ defmodule DemoWeb.TaskLive.Index do
         </div>
 
         <div class="lf-filter-section">
-          <LiveFilter.bar filter={@live_filter} />
+          <LiveFilter.bar filter={@livefilter} />
         </div>
 
         <div class="bg-base-100 rounded-xl border border-base-200 overflow-hidden shadow-sm">

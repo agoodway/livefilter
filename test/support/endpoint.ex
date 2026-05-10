@@ -1,6 +1,6 @@
 defmodule LiveFilter.TestEndpoint do
   @moduledoc false
-  use Phoenix.Endpoint, otp_app: :live_filter
+  use Phoenix.Endpoint, otp_app: :livefilter
 
   @session_options [
     store: :cookie,

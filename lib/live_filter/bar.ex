@@ -8,7 +8,7 @@ defmodule LiveFilter.Bar do
 
   Manages local state for which filter is being edited and whether the
   field picker dropdown is open. Notifies the parent via
-  `{:live_filter, :updated, params}` when filters change.
+  `{:livefilter, :updated, params}` when filters change.
   """
 
   use Phoenix.LiveComponent
@@ -1628,16 +1628,15 @@ defmodule LiveFilter.Bar do
       socket
     else
       context = socket.assigns.filter[:context] || %{}
-
-      new_labels =
-        Enum.reduce(unresolved, resolved, fn filter, acc ->
-          case filter.config.load_label_fn.(filter.value, context) do
-            {:ok, label} -> Map.put(acc, filter.id, label)
-            :error -> acc
-          end
-        end)
-
+      new_labels = Enum.reduce(unresolved, resolved, &resolve_label(&1, &2, context))
       assign(socket, :resolved_labels, new_labels)
+    end
+  end
+
+  defp resolve_label(filter, acc, context) do
+    case filter.config.load_label_fn.(filter.value, context) do
+      {:ok, label} -> Map.put(acc, filter.id, label)
+      :error -> acc
     end
   end
 
@@ -1725,7 +1724,7 @@ defmodule LiveFilter.Bar do
 
   defp notify_parent(socket, new_filters) do
     params = Serializer.to_params(new_filters)
-    send(self(), {:live_filter, :updated, params})
+    send(self(), {:livefilter, :updated, params})
     available = available_fields(socket.assigns.configs, new_filters)
     assign(socket, filters: new_filters, available_fields: available)
   end

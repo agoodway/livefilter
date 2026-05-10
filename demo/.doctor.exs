@@ -1,13 +1,19 @@
 %Doctor.Config{
   ignore_modules: [
-    LiveFilter.Inputs.Boolean,
-    LiveFilter.Inputs.Date,
-    LiveFilter.Inputs.DateRange,
-    LiveFilter.Inputs.DateTime,
-    LiveFilter.Inputs.MultiSelect,
-    LiveFilter.Inputs.Number,
-    LiveFilter.Inputs.Select,
-    LiveFilter.Inputs.Text
+    Demo.Assignees.Assignee,
+    Demo.Projects.Project,
+    Demo.Release,
+    Demo.Repo,
+    Demo.Tasks.Task,
+    Demo.Tasks.TaskAssignee,
+    DemoWeb,
+    DemoWeb.Endpoint,
+    DemoWeb.ErrorHTML,
+    DemoWeb.ErrorJSON,
+    DemoWeb.PageController,
+    DemoWeb.Router,
+    DemoWeb.Telemetry,
+    DemoWeb.TaskLive.Index
   ],
   ignore_paths: [~r"^test/"],
   min_module_doc_coverage: 40,
