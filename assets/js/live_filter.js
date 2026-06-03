@@ -278,6 +278,8 @@ const createDropdownFocusHook = () => {
   const state = {
     observer: null,
     wasOpen: false,
+    dropdown: null,
+    onFocusChange: null,
   }
 
   const checkAndFocus = (el) => {
@@ -308,6 +310,14 @@ const createDropdownFocusHook = () => {
 
       state.observer = createObserver(this.el)
       state.observer.observe(dropdown, { attributes: true })
+
+      // DaisyUI dropdowns open via `:focus-within` without a class change, so
+      // class mutations alone never fire. Re-check on focus transitions too,
+      // deferred a frame so `:focus-within` is settled (for open and close).
+      state.dropdown = dropdown
+      state.onFocusChange = () => requestAnimationFrame(() => checkAndFocus(this.el))
+      dropdown.addEventListener("focusin", state.onFocusChange)
+      dropdown.addEventListener("focusout", state.onFocusChange)
     },
 
     updated() {
@@ -317,6 +327,13 @@ const createDropdownFocusHook = () => {
     destroyed() {
       state.observer?.disconnect()
       state.observer = null
+
+      if (state.dropdown && state.onFocusChange) {
+        state.dropdown.removeEventListener("focusin", state.onFocusChange)
+        state.dropdown.removeEventListener("focusout", state.onFocusChange)
+        state.dropdown = null
+        state.onFocusChange = null
+      }
     },
   }
 }
