@@ -30,3 +30,5 @@ TODO.md
 .claude
 openspec
 .playwright-mcp/
+.superpowers/
+/docs

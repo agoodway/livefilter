@@ -3,8 +3,31 @@ defmodule DemoWeb.TaskLive.Index do
 
   alias Demo.{Projects, Repo, Tasks}
   alias Demo.Tasks.Task
-  alias LiveFilter.{Pagination, Params.Serializer, QueryBuilder}
+  alias LiveFilter.{Pagination, Params.Serializer, QueryBuilder, Sort}
 
+  defp sortable_fields do
+    [
+      LiveFilter.sort_field(:title, label: "Title"),
+      LiveFilter.sort_field(:status, label: "Status"),
+      LiveFilter.sort_field(:estimated_hours,
+        label: "Hours",
+        default_direction: :desc,
+        nulls: :last
+      ),
+      LiveFilter.sort_field(:due_date,
+        label: "Due",
+        default_direction: :desc,
+        nulls: :last
+      )
+    ]
+  end
+
+  defp default_sort, do: %Sort{}
+
+  # Showcases the breadth of LiveFilter field types against the Task schema:
+  # text (ilike), select (command-mode, multi), async_select (search-as-you-type),
+  # boolean, number (comparison operators), date_range, datetime_range, and
+  # multi_select (array containment).
   defp filter_config do
     [
       LiveFilter.text(:title,
@@ -27,16 +50,32 @@ defmodule DemoWeb.TaskLive.Index do
         operators: [:eq, :neq, :in, :not_in],
         mode: :command
       ),
-      LiveFilter.select(:project_id,
+      LiveFilter.async_select(:project_id,
         label: "Project",
-        options_fn: fn -> Projects.project_options() end,
-        icon: "hero-folder"
+        icon: "hero-folder",
+        placeholder: "Search projects…",
+        search_fn: &search_projects/2,
+        load_label_fn: &project_label/2
       ),
       LiveFilter.boolean(:urgent, label: "Urgent", icon: "hero-exclamation-triangle"),
+      # Comparison filter: the number type exposes eq/neq plus the
+      # greater/less-than operators (gt, gte, lt, lte).
+      LiveFilter.number(:estimated_hours,
+        label: "Est. Hours",
+        icon: "hero-clock",
+        operators: [:eq, :neq, :gt, :gte, :lt, :lte],
+        default_operator: :gte,
+        default_visible: true,
+        mode: :command
+      ),
       LiveFilter.date_range(:due_date,
         label: "Due Date",
         icon: "hero-calendar-days",
         default_visible: true
+      ),
+      LiveFilter.datetime_range(:inserted_at,
+        label: "Created",
+        icon: "hero-clock"
       ),
       LiveFilter.multi_select(:tags,
         label: "Tags",
@@ -44,9 +83,25 @@ defmodule DemoWeb.TaskLive.Index do
         search_threshold: 5,
         icon: "hero-tag",
         default_visible: true
-      ),
-      LiveFilter.number(:estimated_hours, label: "Est. Hours", icon: "hero-clock", mode: :command)
+      )
     ]
+  end
+
+  # async_select callbacks: filter the in-memory project list by the typed query
+  # and resolve a stored project_id back to its display label on URL reload.
+  defp search_projects(query, _context) do
+    normalized = String.downcase(query)
+
+    Projects.list_projects()
+    |> Enum.filter(&String.contains?(String.downcase(&1.name), normalized))
+    |> Enum.map(&{to_string(&1.id), &1.name})
+  end
+
+  defp project_label(value, _context) do
+    case Enum.find(Projects.list_projects(), &(to_string(&1.id) == to_string(value))) do
+      nil -> :error
+      project -> {:ok, project.name}
+    end
   end
 
   @impl true
@@ -59,10 +114,14 @@ defmodule DemoWeb.TaskLive.Index do
     {filters, remaining} = LiveFilter.from_params(params, filter_config())
     {pagination, remaining} = LiveFilter.pagination_from_params(remaining, default_limit: 25)
 
+    {sort, remaining} =
+      LiveFilter.sort_from_params(remaining, sortable_fields(), default: default_sort())
+
     socket =
       socket
       |> LiveFilter.init(filter_config(), filters)
       |> assign(:pagination, pagination)
+      |> assign(:sort, sort)
       |> assign(:remaining_params, remaining)
       |> load_tasks()
 
@@ -72,24 +131,65 @@ defmodule DemoWeb.TaskLive.Index do
   @impl true
   def handle_info(
         {:livefilter, :updated, params},
-        %{assigns: %{remaining_params: remaining_params, pagination: %{limit: limit}}} = socket
+        %{assigns: %{remaining_params: remaining_params, pagination: %{limit: limit}, sort: sort}} =
+          socket
       ) do
     pagination_params = %{"limit" => to_string(limit), "offset" => "0"}
-    all_params = Map.merge(remaining_params, params) |> Map.merge(pagination_params)
+
+    all_params =
+      remaining_params
+      |> Map.merge(params)
+      |> Map.merge(Sort.to_params(sort))
+      |> Map.merge(pagination_params)
+
     {:noreply, push_patch(socket, to: LiveFilter.to_path("/tasks", all_params))}
   end
 
   def handle_info(
         {:livefilter, :page_changed, pagination_params},
-        %{assigns: %{remaining_params: remaining_params, livefilter: %{filters: filters}}} =
-          socket
+        %{
+          assigns: %{
+            remaining_params: remaining_params,
+            livefilter: %{filters: filters},
+            sort: sort
+          }
+        } = socket
       ) do
     filter_params = Serializer.to_params(filters)
-    all_params = Map.merge(remaining_params, filter_params) |> Map.merge(pagination_params)
+
+    all_params =
+      remaining_params
+      |> Map.merge(filter_params)
+      |> Map.merge(Sort.to_params(sort))
+      |> Map.merge(pagination_params)
+
     {:noreply, push_patch(socket, to: LiveFilter.to_path("/tasks", all_params))}
   end
 
-  defp load_tasks(%{assigns: %{pagination: pagination, livefilter: %{filters: filters}}} = socket) do
+  @impl true
+  def handle_event("lf_sort", %{"field" => field}, socket) do
+    field = String.to_existing_atom(field)
+    sort = Sort.toggle(socket.assigns.sort, field, sortable_fields())
+    {:noreply, push_patch(socket, to: sort_path(socket, sort))}
+  end
+
+  defp sort_path(socket, sort) do
+    filter_params = Serializer.to_params(socket.assigns.livefilter.filters)
+    pagination_params = %{"limit" => to_string(socket.assigns.pagination.limit), "offset" => "0"}
+
+    all_params =
+      socket.assigns.remaining_params
+      |> Map.merge(filter_params)
+      |> Map.merge(Sort.to_params(sort))
+      |> Map.merge(pagination_params)
+
+    LiveFilter.to_path("/tasks", all_params)
+  end
+
+  defp load_tasks(
+         %{assigns: %{pagination: pagination, sort: sort, livefilter: %{filters: filters}}} =
+           socket
+       ) do
     base_query =
       Task
       |> QueryBuilder.apply(filters,
@@ -100,6 +200,7 @@ defmodule DemoWeb.TaskLive.Index do
           :project_id,
           :urgent,
           :due_date,
+          :inserted_at,
           :tags,
           :estimated_hours
         ]
@@ -109,6 +210,7 @@ defmodule DemoWeb.TaskLive.Index do
 
     tasks =
       base_query
+      |> QueryBuilder.apply_sort(sort)
       |> QueryBuilder.apply_pagination(pagination)
       |> Tasks.list_tasks()
 
@@ -140,6 +242,41 @@ defmodule DemoWeb.TaskLive.Index do
 
         <div class="bg-base-100 rounded-xl border border-base-200 overflow-hidden shadow-sm">
           <.table id="tasks" rows={@tasks} row_id={fn task -> "task-#{task.id}" end}>
+            <:header>
+              <LiveFilter.sort_header
+                field={:title}
+                label="Title"
+                sort={@sort}
+                sortable_fields={sortable_fields()}
+              />
+            </:header>
+            <:header>Project</:header>
+            <:header>
+              <LiveFilter.sort_header
+                field={:status}
+                label="Status"
+                sort={@sort}
+                sortable_fields={sortable_fields()}
+              />
+            </:header>
+            <:header>Assignees</:header>
+            <:header>Tags</:header>
+            <:header>
+              <LiveFilter.sort_header
+                field={:estimated_hours}
+                label="Hours"
+                sort={@sort}
+                sortable_fields={sortable_fields()}
+              />
+            </:header>
+            <:header>
+              <LiveFilter.sort_header
+                field={:due_date}
+                label="Due"
+                sort={@sort}
+                sortable_fields={sortable_fields()}
+              />
+            </:header>
             <:col :let={task} label="Title">
               <div class="flex items-center gap-2">
                 <span :if={task.urgent} class="urgent-indicator" title="Urgent">

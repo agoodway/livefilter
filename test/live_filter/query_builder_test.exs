@@ -184,3 +184,73 @@ defmodule LiveFilter.QueryBuilderTest do
     end
   end
 end
+
+defmodule LiveFilter.QueryBuilder.ApplySortTest do
+  use ExUnit.Case, async: true
+  alias LiveFilter.QueryBuilder
+  alias LiveFilter.Sort
+  alias LiveFilter.Sort.Entry
+
+  defp order_bys(%Ecto.Query{order_bys: obs}) do
+    Enum.flat_map(obs, fn ob ->
+      Enum.map(ob.expr, fn {dir, {{:., _, [_, field]}, _, _}} -> {dir, field} end)
+    end)
+  end
+
+  test "maps a single entry to order_by using query_field, then appends the :id tiebreaker" do
+    sort = %Sort{entries: [%Entry{field: :clicks, direction: :desc, query_field: :total_clicks}]}
+    query = QueryBuilder.apply_sort("links", sort)
+    assert order_bys(query) == [desc: :total_clicks, asc: :id]
+  end
+
+  test "falls back to the public field when query_field is nil" do
+    sort = %Sort{entries: [%Entry{field: :name, direction: :asc}]}
+    assert order_bys(QueryBuilder.apply_sort("links", sort)) == [asc: :name, asc: :id]
+  end
+
+  test "maps nulls placement to the nulls-aware ecto direction" do
+    sort = %Sort{
+      entries: [
+        %Entry{field: :clicks, direction: :desc, query_field: :total_clicks, nulls: :last}
+      ]
+    }
+
+    assert order_bys(QueryBuilder.apply_sort("links", sort)) == [
+             desc_nulls_last: :total_clicks,
+             asc: :id
+           ]
+  end
+
+  test "preserves multi-entry order then tiebreaker" do
+    sort = %Sort{
+      entries: [
+        %Entry{field: :clicks, direction: :desc, query_field: :total_clicks},
+        %Entry{field: :created, direction: :asc, query_field: :inserted_at}
+      ]
+    }
+
+    assert order_bys(QueryBuilder.apply_sort("links", sort)) ==
+             [desc: :total_clicks, asc: :inserted_at, asc: :id]
+  end
+
+  test "empty sort applies only the tiebreaker" do
+    assert order_bys(QueryBuilder.apply_sort("links", %Sort{})) == [asc: :id]
+  end
+
+  test "does not duplicate the tiebreaker if already sorted by it" do
+    sort = %Sort{entries: [%Entry{field: :id, direction: :desc, query_field: :id}]}
+    assert order_bys(QueryBuilder.apply_sort("links", sort)) == [desc: :id]
+  end
+
+  test "tiebreak: false disables the tiebreaker" do
+    sort = %Sort{entries: [%Entry{field: :clicks, direction: :desc, query_field: :total_clicks}]}
+
+    assert order_bys(QueryBuilder.apply_sort("links", sort, tiebreak: false)) == [
+             desc: :total_clicks
+           ]
+  end
+
+  test "tiebreak can be a custom field" do
+    assert order_bys(QueryBuilder.apply_sort("links", %Sort{}, tiebreak: :uuid)) == [asc: :uuid]
+  end
+end

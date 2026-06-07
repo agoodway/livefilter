@@ -175,4 +175,16 @@ defmodule LiveFilter.Params.Serializer do
   def pagination_to_params(%Pagination{limit: limit, offset: offset}) do
     %{"limit" => to_string(limit), "offset" => to_string(offset)}
   end
+
+  @doc """
+  Serializes sort state to PostgREST `order=` params (delegates to
+  `LiveFilter.Sort.to_params/1`).
+
+  ## Example
+
+      iex> Serializer.sort_to_params(%LiveFilter.Sort{entries: [%LiveFilter.Sort.Entry{field: :clicks, direction: :desc}]})
+      %{"order" => "clicks.desc"}
+  """
+  @spec sort_to_params(LiveFilter.Sort.t()) :: map()
+  defdelegate sort_to_params(sort), to: LiveFilter.Sort, as: :to_params
 end

@@ -16,7 +16,7 @@ defmodule LiveFilter do
       ]
   """
 
-  alias LiveFilter.{Filter, FilterConfig, Pagination, Params.Parser, Params.Serializer}
+  alias LiveFilter.{Filter, FilterConfig, Pagination, Params.Parser, Params.Serializer, SortField}
 
   use Phoenix.Component
 
@@ -245,6 +245,32 @@ defmodule LiveFilter do
     end
   end
 
+  @doc """
+  Builds a `LiveFilter.SortField` declaration for the sort UI + parse allow-list.
+
+  ## Options
+    * `:label` - display label (default: capitalized field name)
+    * `:query_field` - the DB column to order by (default: the field name)
+    * `:default_direction` - first-click direction, `:asc` (default) or `:desc`
+    * `:nulls` - default nulls placement: `nil` (default), `:first`, or `:last`
+  """
+  @spec sort_field(atom(), keyword()) :: SortField.t()
+  def sort_field(field, opts \\ []) when is_atom(field) do
+    direction = Keyword.get(opts, :default_direction, :asc)
+
+    unless direction in [:asc, :desc] do
+      raise ArgumentError, "sort_field :#{field} default_direction must be :asc or :desc"
+    end
+
+    %SortField{
+      field: field,
+      label: build_label(field, opts),
+      query_field: Keyword.get(opts, :query_field),
+      default_direction: direction,
+      nulls: Keyword.get(opts, :nulls)
+    }
+  end
+
   # --- LiveView Integration ---
 
   @doc """
@@ -368,6 +394,44 @@ defmodule LiveFilter do
   defp parse_non_negative_int(val, _default) when is_integer(val) and val >= 0, do: val
   defp parse_non_negative_int(_, default), do: default
 
+  @doc """
+  Parses the PostgREST `order=` param into a `LiveFilter.Sort`, validated against
+  the given `sortable_fields` (a list of `LiveFilter.SortField`).
+
+  Returns `{sort, remaining_params}`. Unknown fields and malformed tokens are
+  dropped (allow-list = injection + dynamic-column safety). When `order` is
+  absent or every entry is invalid, `opts[:default]` (a `%LiveFilter.Sort{}`) is
+  used, defaulting to an empty sort.
+
+  ## Example
+
+      {sort, remaining} =
+        LiveFilter.sort_from_params(params, sortable_fields, default: default_sort())
+  """
+  @spec sort_from_params(map(), [SortField.t()], keyword()) :: {LiveFilter.Sort.t(), map()}
+  def sort_from_params(params, sortable_fields, opts \\ []) do
+    default = Keyword.get(opts, :default, %LiveFilter.Sort{})
+    remaining = Map.delete(params, "order")
+
+    case Map.get(params, "order") do
+      order when is_binary(order) and order != "" ->
+        by_field = Map.new(sortable_fields, &{Atom.to_string(&1.field), &1})
+
+        entries =
+          order
+          |> String.split(",", trim: true)
+          |> Enum.map(&LiveFilter.Sort.from_token(&1, by_field))
+          |> Enum.reject(&is_nil/1)
+          |> Enum.uniq_by(& &1.field)
+
+        sort = if entries == [], do: default, else: %LiveFilter.Sort{entries: entries}
+        {sort, remaining}
+
+      _ ->
+        {default, remaining}
+    end
+  end
+
   @doc ~S"""
   Builds a path with raw (non-encoded) query string from a params map.
 
@@ -433,6 +497,32 @@ defmodule LiveFilter do
     <.live_component module={LiveFilter.Paginator} id="live-filter-paginator" pagination={@pagination} class={@class} />
     """
   end
+
+  @doc """
+  Convenience wrapper for `LiveFilter.SortComponents.sort_header/1`.
+  """
+  attr(:field, :atom, required: true)
+  attr(:label, :string, required: true)
+  attr(:sort, LiveFilter.Sort, required: true)
+  attr(:sortable_fields, :list, default: [])
+  attr(:event, :string, default: "lf_sort")
+  attr(:target, :any, default: nil)
+  attr(:class, :string, default: nil)
+  slot(:inner_block)
+
+  def sort_header(assigns), do: LiveFilter.SortComponents.sort_header(assigns)
+
+  @doc """
+  Convenience wrapper for `LiveFilter.SortComponents.sort_menu/1`.
+  """
+  attr(:sortable_fields, :list, required: true)
+  attr(:sort, LiveFilter.Sort, required: true)
+  attr(:id, :string, default: "lf-sort-menu")
+  attr(:event, :string, default: "lf_sort_to")
+  attr(:target, :any, default: nil)
+  attr(:class, :string, default: nil)
+
+  def sort_menu(assigns), do: LiveFilter.SortComponents.sort_menu(assigns)
 
   defp build_config(field, type, opts, defaults) do
     validate_options!(field, type, opts)

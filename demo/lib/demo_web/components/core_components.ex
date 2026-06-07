@@ -351,6 +351,9 @@ defmodule DemoWeb.CoreComponents do
     attr :label, :string
   end
 
+  slot :header,
+    doc: "optional per-column header cells; when given, replaces the default :label header row"
+
   slot :action, doc: "the slot for showing user actions in the last table column"
 
   def table(assigns) do
@@ -363,7 +366,11 @@ defmodule DemoWeb.CoreComponents do
     <table class="table table-zebra">
       <thead>
         <tr>
-          <th :for={col <- @col}>{col[:label]}</th>
+          <%= if @header != [] do %>
+            <th :for={header <- @header}>{render_slot(header)}</th>
+          <% else %>
+            <th :for={col <- @col}>{col[:label]}</th>
+          <% end %>
           <th :if={@action != []}>
             <span class="sr-only">Actions</span>
           </th>

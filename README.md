@@ -331,6 +331,82 @@ def handle_info({:livefilter, :page_changed, pagination_params}, socket) do
 end
 ```
 
+## Sorting
+
+LiveFilter adds PostgREST-compatible `order=` sorting, modeled as an orthogonal,
+URL-shareable concern just like pagination. The headless core (`LiveFilter.Sort`)
+is multi-column ready; the bundled UI sets a single active sort.
+
+```elixir
+# Declare sortable fields (static, or built at runtime from a user's column settings).
+# This list is also the allow-list that incoming `order=` params are validated against.
+defp sortable_fields do
+  [
+    LiveFilter.sort_field(:title, label: "Title"),
+    LiveFilter.sort_field(:status, label: "Status"),
+    LiveFilter.sort_field(:due_date, label: "Due", default_direction: :desc, nulls: :last)
+  ]
+end
+
+# In handle_params — parse off the remaining params (after filters + pagination).
+# Unknown/malformed fields are dropped; `default:` applies when no order is present.
+{filters, remaining} = LiveFilter.from_params(params, filter_config())
+{pagination, remaining} = LiveFilter.pagination_from_params(remaining, default_limit: 25)
+{sort, remaining} = LiveFilter.sort_from_params(remaining, sortable_fields(), default: %LiveFilter.Sort{})
+
+# Apply to the query. A stable `:id` tiebreaker is appended by default so paginated,
+# low-cardinality sorts don't skip/repeat rows across pages.
+query
+|> LiveFilter.QueryBuilder.apply(filters, schema: Task)
+|> LiveFilter.QueryBuilder.apply_sort(sort)
+|> LiveFilter.QueryBuilder.apply_pagination(pagination)
+
+# Serialize back into the URL alongside filters + pagination.
+all_params =
+  filter_params
+  |> Map.merge(LiveFilter.Sort.to_params(sort))
+  |> Map.merge(LiveFilter.Params.Serializer.pagination_to_params(pagination))
+```
+
+### UI
+
+A standalone "Order by" dropdown and/or per-column sortable headers — both drive the
+same `%LiveFilter.Sort{}` state:
+
+```heex
+<LiveFilter.sort_menu sortable_fields={sortable_fields()} sort={@sort} />
+
+<LiveFilter.sort_header field={:title} label="Title" sort={@sort} sortable_fields={sortable_fields()} />
+```
+
+The header emits `lf_sort` (tri-state toggle: none → default → opposite → none) and the
+menu emits `lf_sort_to` (explicit direction). Handle them by updating the sort and
+patching the URL (reset the offset to page 1 on a sort change):
+
+```elixir
+def handle_event("lf_sort", %{"field" => field}, socket) do
+  field = String.to_existing_atom(field)
+  sort = LiveFilter.Sort.toggle(socket.assigns.sort, field, sortable_fields())
+  {:noreply, push_patch(socket, to: sort_path(socket, sort))}
+end
+
+def handle_event("lf_sort_to", %{"field" => field, "direction" => dir}, socket) do
+  field = String.to_existing_atom(field)
+  sort = LiveFilter.Sort.put(socket.assigns.sort, field, String.to_existing_atom(dir))
+  {:noreply, push_patch(socket, to: sort_path(socket, sort))}
+end
+```
+
+`LiveFilter.Sort.toggle/3` accepts the `SortField` list and reads each field's declared
+`default_direction`/`nulls`. Both components reflect the active column via `aria-sort`.
+
+### Headless
+
+Skip the components and build your own headers from the primitives:
+`LiveFilter.Sort.direction_for/2`, `toggle/3`, `put/4`, `clear/1`, and `to_params/1`.
+Multi-column sort is modeled (`order=a.desc,b.asc`) even though the bundled UI sets a
+single active sort.
+
 ## License
 
 MIT

@@ -5,9 +5,9 @@ defmodule LiveFilter.QueryBuilder do
   """
 
   import Kernel, except: [apply: 3]
-  import Ecto.Query, only: [limit: 2, offset: 2, exclude: 2, where: 3]
+  import Ecto.Query, only: [limit: 2, offset: 2, exclude: 2, where: 3, order_by: 3]
 
-  alias LiveFilter.{Filter, Pagination}
+  alias LiveFilter.{Filter, Pagination, Sort}
   alias LiveFilter.Params.Parser
 
   @doc """
@@ -158,6 +158,58 @@ defmodule LiveFilter.QueryBuilder do
     query
     |> limit(^lim)
     |> offset(^off)
+  end
+
+  # --- Sort ---
+
+  @doc """
+  Applies a `LiveFilter.Sort` to an Ecto query as `order_by`, mapping each entry
+  via its `query_field` and `nulls` placement.
+
+  A deterministic tiebreaker column is appended so paginated, low-cardinality
+  sorts stay stable across pages (the classic "rows skipped/repeated across
+  pages" bug). Configure with `opts[:tiebreak]` (default `:id`, `false` to
+  disable). For expression-based sorts, skip this and order on the parsed
+  `%LiveFilter.Sort{}` yourself.
+
+  ## Example
+
+      query
+      |> LiveFilter.QueryBuilder.apply(filters, schema: Link)
+      |> LiveFilter.QueryBuilder.apply_sort(sort)        # tiebreak: :id
+      |> LiveFilter.QueryBuilder.apply_pagination(pagination)
+  """
+  @spec apply_sort(Ecto.Queryable.t(), Sort.t(), keyword()) :: Ecto.Query.t()
+  def apply_sort(query, %Sort{entries: entries}, opts \\ []) do
+    tiebreak = Keyword.get(opts, :tiebreak, :id)
+
+    specs =
+      entries
+      |> Enum.map(&entry_spec/1)
+      |> append_tiebreak(entries, tiebreak)
+
+    case specs do
+      [] -> query
+      specs -> order_by(query, [], ^specs)
+    end
+  end
+
+  defp entry_spec(%Sort.Entry{direction: dir, nulls: nulls} = e) do
+    {ecto_direction(dir, nulls), e.query_field || e.field}
+  end
+
+  defp ecto_direction(:asc, nil), do: :asc
+  defp ecto_direction(:desc, nil), do: :desc
+  defp ecto_direction(:asc, :first), do: :asc_nulls_first
+  defp ecto_direction(:asc, :last), do: :asc_nulls_last
+  defp ecto_direction(:desc, :first), do: :desc_nulls_first
+  defp ecto_direction(:desc, :last), do: :desc_nulls_last
+
+  defp append_tiebreak(specs, _entries, false), do: specs
+
+  defp append_tiebreak(specs, entries, field) do
+    already? = Enum.any?(entries, &((&1.query_field || &1.field) == field))
+    if already?, do: specs, else: specs ++ [{:asc, field}]
   end
 
   @doc """
