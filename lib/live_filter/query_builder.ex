@@ -1,118 +1,193 @@
 defmodule LiveFilter.QueryBuilder do
   @moduledoc """
-  Thin query builder that converts LiveFilter structs to PgRest AST maps
-  and delegates to `PgRest.Filter.apply_all/2`.
+  Thin query builder that converts LiveFilter structs to PgRest filter AST nodes
+  (`PgRest.AST.Condition`) and applies them with `PgRest.Ecto.Filter.where/3`.
   """
 
   import Kernel, except: [apply: 3]
-  import Ecto.Query, only: [limit: 2, offset: 2, exclude: 2, where: 3, order_by: 3]
+  import Ecto.Query, only: [limit: 2, offset: 2, exclude: 2, order_by: 3]
 
   alias LiveFilter.{Filter, Pagination, Sort}
   alias LiveFilter.Params.Parser
+  alias PgRest.AST.{Condition, Field}
+  alias PgRest.Ecto.Filter, as: EctoFilter
+  alias PgRest.Error
+  alias PgRest.Grammar.Filter, as: Grammar
+
+  @typedoc "A filter that could not be applied, with the reason."
+  @type rejection :: {Filter.t(), Error.t()}
 
   @doc """
   Applies a list of Filter structs to an Ecto query.
 
-  Converts each Filter to a PgRest-compatible AST map, splits date_range
-  compound filters, optionally casts via PgRest.TypeCaster, and delegates
-  to PgRest.Filter.apply_all/2.
+  Converts each Filter to `PgRest.AST.Condition`s (a date range becomes a `gte` and an
+  `lte`) and applies them with `PgRest.Ecto.Filter.where/3`.
+
+  A filter that cannot be applied is skipped: with `:schema`, a value its field type
+  rejects (`22P02`, e.g. `?qty=gt.lots` typed into the URL) or a field that is not a
+  schema field (`42703`); in a param map, a value the PostgREST grammar rejects
+  (`PGRST100`, e.g. `?enabled=is.maybe`). The other filters still apply, so a
+  hand-edited URL never crashes the LiveView. Use `apply_with_errors/3` to report the skipped filters, or
+  `apply!/3` to raise.
 
   ## Options
 
-    * `:schema` - Ecto schema module for type casting via `PgRest.TypeCaster.cast_filters/2`
+    * `:schema` - Ecto schema module; values are cast to its field types
     * `:allowed_fields` - list of atoms restricting which fields can be filtered
     * `:config` - filter config list (required when passing a param map instead of filters)
   """
-  @spec apply(Ecto.Queryable.t(), [Filter.t()] | map(), keyword()) :: Ecto.Query.t()
-  def apply(query, filters_or_params, opts \\ [])
-
-  def apply(query, %{} = params, opts) do
-    configs = Keyword.fetch!(opts, :config)
-    {filters, _remaining} = Parser.from_params(params, configs)
-    apply(query, filters, Keyword.delete(opts, :config))
+  @spec apply(Ecto.Queryable.t(), [Filter.t()] | map(), keyword()) :: Ecto.Queryable.t()
+  def apply(query, filters_or_params, opts \\ []) do
+    {query, _rejected} = apply_with_errors(query, filters_or_params, opts)
+    query
   end
 
-  def apply(query, filters, opts) when is_list(filters) do
-    allowed_fields = Keyword.get(opts, :allowed_fields)
-    schema = Keyword.get(opts, :schema)
+  @doc """
+  Like `apply/3`, but raises the first `PgRest.Error` instead of skipping the filter.
+  """
+  @spec apply!(Ecto.Queryable.t(), [Filter.t()] | map(), keyword()) :: Ecto.Queryable.t()
+  def apply!(query, filters_or_params, opts \\ []) do
+    query
+    |> apply_with_errors(filters_or_params, opts)
+    |> raise_first()
+  end
 
+  @doc """
+  Like `apply/3`, and also returns the skipped filters with their `PgRest.Error`, in
+  filter order, e.g. to flash which URL filters were ignored.
+  """
+  @spec apply_with_errors(Ecto.Queryable.t(), [Filter.t()] | map(), keyword()) ::
+          {Ecto.Queryable.t(), [rejection()]}
+  def apply_with_errors(query, filters_or_params, opts \\ [])
+
+  def apply_with_errors(query, %{} = params, opts) do
+    {configs, opts} = Keyword.pop!(opts, :config)
+    {filters, _remaining, unparsed} = Parser.from_params_with_errors(params, configs)
+    {query, rejected} = apply_with_errors(query, filters, opts)
+    {query, allowed_rejections(unparsed, Keyword.get(opts, :allowed_fields)) ++ rejected}
+  end
+
+  def apply_with_errors(query, filters, opts) when is_list(filters) do
     valid_filters =
       filters
-      |> maybe_filter_allowed(allowed_fields)
+      |> maybe_filter_allowed(Keyword.get(opts, :allowed_fields))
       |> Enum.reject(&empty_value?/1)
 
-    # Handle :not_in filters directly (PgRest's NOT wrapper has issues with complex queries)
-    {not_in_filters, other_filters} = Enum.split_with(valid_filters, &(&1.operator == :not_in))
-    query = apply_not_in_filters(query, not_in_filters)
+    filter_opts = [
+      schema: Keyword.get(opts, :schema),
+      fields: valid_filters |> Enum.map(& &1.field) |> Enum.uniq()
+    ]
 
-    # Convert remaining filters to PgRest AST maps
-    ast_maps = Enum.flat_map(other_filters, &to_ast_maps/1)
-    ast_maps = maybe_cast(ast_maps, schema)
-
-    PgRest.Filter.apply_all(query, ast_maps)
-  end
-
-  # Apply :not_in filters directly using Ecto.Query
-  # This avoids PgRest's NOT wrapper which has issues with complex queries containing subqueries
-  defp apply_not_in_filters(query, []), do: query
-
-  defp apply_not_in_filters(query, filters) do
-    Enum.reduce(filters, query, fn %Filter{field: field, value: values}, q ->
-      where(q, [r], field(r, ^field) not in ^values)
-    end)
+    valid_filters
+    |> Enum.map(&{&1, to_conditions(&1)})
+    |> where_each(query, filter_opts)
   end
 
   @doc """
   Applies a raw PostgREST param map to an Ecto query without filter config.
 
-  Parses each param via `PgRest.Parser.parse_operator_value/1` and delegates
-  to `PgRest.Filter.apply_all/2`.
+  Parses each param with `PgRest.Grammar.Filter.parse_condition/2` (params that
+  are not `op.value` filters are skipped) and applies them with
+  `PgRest.Ecto.Filter.where/3`. Values are cast to the query's schema fields;
+  a schemaless source needs `:allowed_fields` (`ArgumentError` otherwise).
+
+  As in `apply/3`, a param whose field is not filterable or whose value cannot be cast
+  is skipped; `apply_raw!/3` raises instead.
 
   ## Options
 
-    * `:schema` - Ecto schema module for type casting
+    * `:schema` - Ecto schema module for type casting (defaults to the query's schema)
     * `:allowed_fields` - list of atoms restricting which fields can be filtered
   """
-  @spec apply_raw(Ecto.Queryable.t(), map(), keyword()) :: Ecto.Query.t()
+  @spec apply_raw(Ecto.Queryable.t(), map(), keyword()) :: Ecto.Queryable.t()
   def apply_raw(query, params, opts \\ []) when is_map(params) do
-    allowed_fields = Keyword.get(opts, :allowed_fields)
-    schema = Keyword.get(opts, :schema)
-
-    ast_maps =
-      params
-      |> Enum.flat_map(fn {key, value} ->
-        case PgRest.Parser.parse_operator_value(value) do
-          {:ok, op, val} -> [%{field: key, operator: op, value: val}]
-          {:error, _} -> []
-        end
-      end)
-      |> maybe_filter_allowed_maps(allowed_fields)
-
-    ast_maps = maybe_cast(ast_maps, schema)
-
-    PgRest.Filter.apply_all(query, ast_maps)
+    {query, _rejected} = apply_raw_with_errors(query, params, opts)
+    query
   end
 
-  # Convert a Filter struct to one or more PgRest AST maps
-  defp to_ast_maps(%Filter{operator: :gte_lte, field: field, value: {start_val, end_val}}) do
-    field_str = Atom.to_string(field)
+  @doc """
+  Like `apply_raw/3`, but raises the first `PgRest.Error` instead of skipping the param.
+  """
+  @spec apply_raw!(Ecto.Queryable.t(), map(), keyword()) :: Ecto.Queryable.t()
+  def apply_raw!(query, params, opts \\ []) when is_map(params) do
+    query
+    |> apply_raw_with_errors(params, opts)
+    |> raise_first()
+  end
 
-    [{start_val, :gte}, {end_val, :lte}]
-    |> Enum.reject(fn {val, _op} -> is_nil(val) end)
-    |> Enum.map(fn {val, op} -> %{field: field_str, operator: op, value: val} end)
+  defp apply_raw_with_errors(query, params, opts) do
+    allowed_fields = Keyword.get(opts, :allowed_fields)
+
+    filter_opts =
+      opts
+      |> Keyword.take([:schema])
+      |> put_fields(allowed_fields)
+
+    params
+    |> Enum.flat_map(&parse_param/1)
+    |> maybe_filter_allowed_conditions(allowed_fields)
+    |> Enum.map(&{&1, [&1]})
+    |> where_each(query, filter_opts)
+  end
+
+  defp put_fields(opts, nil), do: opts
+  defp put_fields(opts, fields), do: Keyword.put(opts, :fields, fields)
+
+  defp parse_param({key, value}) when is_binary(value) do
+    case Grammar.parse_condition(key, value) do
+      {:ok, condition} -> [condition]
+      {:error, _error} -> []
+    end
+  end
+
+  defp parse_param(_param), do: []
+
+  # Applies each `{source, conditions}` pair on its own, so one bad filter only drops itself.
+  defp where_each(entries, query, opts) do
+    {query, rejected} =
+      Enum.reduce(entries, {query, []}, fn {source, conditions}, {acc, rejected} ->
+        case EctoFilter.where(acc, conditions, opts) do
+          {:ok, acc} -> {acc, rejected}
+          {:error, error} -> {acc, [{source, error} | rejected]}
+        end
+      end)
+
+    {query, Enum.reverse(rejected)}
+  end
+
+  defp raise_first({query, []}), do: query
+  defp raise_first({_query, [{_source, error} | _rest]}), do: raise(error)
+
+  # Convert a Filter struct to one or more PgRest conditions
+  defp to_conditions(%Filter{operator: :gte_lte, field: field, value: {start_val, end_val}}) do
+    [{:gte, start_val}, {:lte, end_val}]
+    |> Enum.reject(fn {_op, val} -> is_nil(val) end)
+    |> Enum.map(fn {op, val} -> condition(field, op, val) end)
   end
 
   # ILIKE/LIKE need % wildcards for substring matching
-  defp to_ast_maps(%Filter{field: field, operator: op, value: value})
-       when op in [:ilike, :like] and is_binary(value) do
-    [%{field: Atom.to_string(field), operator: op, value: "%#{value}%"}]
-  end
+  defp to_conditions(%Filter{field: field, operator: op, value: value})
+       when op in [:ilike, :like] and is_binary(value),
+       do: [condition(field, op, "%#{value}%")]
 
-  # Note: :not_in is handled separately in apply/3 to avoid PgRest NOT wrapper issues
+  defp to_conditions(%Filter{field: field, operator: :not_in, value: values}),
+    do: [%{condition(field, :in, values) | negate: true}]
 
-  defp to_ast_maps(%Filter{field: field, operator: op, value: value}) do
-    [%{field: Atom.to_string(field), operator: op, value: value}]
-  end
+  defp to_conditions(%Filter{field: field, operator: :is_null, value: true}),
+    do: [condition(field, :is, :null)]
+
+  defp to_conditions(%Filter{field: field, operator: :is_null, value: false}),
+    do: [condition(field, :is, :not_null)]
+
+  defp to_conditions(%Filter{field: field, operator: op, value: {config, query}})
+       when op in [:fts, :plfts, :phfts, :wfts],
+       do: [%{condition(field, op, query) | fts_config: config}]
+
+  defp to_conditions(%Filter{field: field, operator: op, value: value}),
+    do: [condition(field, op, value)]
+
+  defp condition(field, op, value),
+    do: %Condition{field: %Field{name: Atom.to_string(field)}, op: op, value: value}
 
   defp maybe_filter_allowed(filters, nil), do: filters
 
@@ -120,18 +195,16 @@ defmodule LiveFilter.QueryBuilder do
     Enum.filter(filters, &(&1.field in allowed_fields))
   end
 
-  defp maybe_filter_allowed_maps(maps, nil), do: maps
+  defp allowed_rejections(rejections, nil), do: rejections
 
-  defp maybe_filter_allowed_maps(maps, allowed_fields) do
+  defp allowed_rejections(rejections, allowed_fields),
+    do: Enum.filter(rejections, fn {filter, _error} -> filter.field in allowed_fields end)
+
+  defp maybe_filter_allowed_conditions(conditions, nil), do: conditions
+
+  defp maybe_filter_allowed_conditions(conditions, allowed_fields) do
     allowed_strings = Enum.map(allowed_fields, &Atom.to_string/1)
-    Enum.filter(maps, &(&1.field in allowed_strings))
-  end
-
-  defp maybe_cast(ast_maps, nil), do: ast_maps
-
-  defp maybe_cast(ast_maps, schema) do
-    {:ok, cast} = PgRest.TypeCaster.cast_filters(ast_maps, schema)
-    cast
+    Enum.filter(conditions, &(&1.field.name in allowed_strings))
   end
 
   # Skip filters with empty/nil values (e.g., newly added always_on filters)

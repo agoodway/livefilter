@@ -1,6 +1,8 @@
 defmodule LiveFilter.PaginatorTest do
   use ExUnit.Case, async: true
 
+  import Phoenix.LiveViewTest
+
   alias LiveFilter.{Pagination, Paginator}
 
   # Test the page_buttons logic directly
@@ -164,6 +166,64 @@ defmodule LiveFilter.PaginatorTest do
       assert {:noreply, _socket} = Paginator.handle_event("next_page", %{}, socket)
       assert_received {:livefilter, :page_changed, %{"limit" => "25", "offset" => "25"}}
     end
+  end
+
+  describe "render" do
+    test "shows the visible range of a page that holds rows" do
+      html = render_paginator(%Pagination{limit: 25, offset: 25, total_count: 60})
+
+      assert text(html) =~ "Showing 26 to 50 of 60 results"
+      refute html =~ "Go to first page"
+    end
+
+    test "shows No results when there are no rows" do
+      html = render_paginator(%Pagination{limit: 25, offset: 0, total_count: 0})
+
+      assert text(html) =~ "No results"
+      refute text(html) =~ "Showing"
+      refute html =~ "Go to first page"
+    end
+
+    test "offers the first page when offset is past the last row" do
+      html = render_paginator(%Pagination{limit: 25, offset: 999, total_count: 3})
+
+      assert text(html) =~ "No results on this page"
+      refute text(html) =~ "Showing"
+
+      assert [_button] =
+               html
+               |> LazyHTML.from_fragment()
+               |> LazyHTML.query("button[phx-click=go_to_page][phx-value-page='1']")
+               |> Enum.filter(&(LazyHTML.text(&1) =~ "Go to first page"))
+    end
+  end
+
+  test "per-page form and select take ids from the component id" do
+    html =
+      render_component(Paginator,
+        id: "orders-pagination",
+        pagination: %Pagination{limit: 25, offset: 0, total_count: 60}
+      )
+
+    doc = LazyHTML.from_fragment(html)
+
+    assert [_] = Enum.to_list(LazyHTML.query(doc, "form#orders-pagination-limit-form"))
+
+    assert [_] =
+             Enum.to_list(
+               LazyHTML.query(
+                 doc,
+                 "label[for=orders-pagination-limit] + select#orders-pagination-limit"
+               )
+             )
+  end
+
+  defp render_paginator(pagination) do
+    render_component(Paginator, id: "pagination", pagination: pagination)
+  end
+
+  defp text(html) do
+    html |> LazyHTML.from_fragment() |> LazyHTML.text() |> String.split() |> Enum.join(" ")
   end
 
   # Helper that replicates the page_buttons logic for testing

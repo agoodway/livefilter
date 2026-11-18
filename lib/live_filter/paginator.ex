@@ -3,7 +3,8 @@ defmodule LiveFilter.Paginator do
   LiveComponent that renders pagination controls.
 
   Provides:
-  - Page info text ("Showing 26-50 of 127")
+  - Page info text ("Showing 26 to 50 of 127 results"; "No results"; or, when the
+    offset is past the last row, "No results on this page" with a button back to page 1)
   - Per-page selector dropdown
   - Prev/Next buttons
   - Configurable page number stepper
@@ -54,6 +55,7 @@ defmodule LiveFilter.Paginator do
        has_next: Pagination.has_next?(pagination),
        start_item: Pagination.start_item(pagination),
        end_item: Pagination.end_item(pagination),
+       past_end: Pagination.past_end?(pagination),
        max_pages: max_pages,
        class: class
      )}
@@ -71,10 +73,13 @@ defmodule LiveFilter.Paginator do
         start_item={@start_item}
         end_item={@end_item}
         total_count={@pagination.total_count}
+        past_end={@past_end}
+        myself={@myself}
       />
 
       <div class="flex items-center gap-4">
         <.limit_selector
+          id={@id}
           pagination={@pagination}
           myself={@myself}
         />
@@ -99,13 +104,25 @@ defmodule LiveFilter.Paginator do
 
   defp page_info(assigns) do
     ~H"""
-    <div class="text-sm text-base-content/70">
-      <%= if @total_count && @total_count > 0 do %>
-        Showing <span class="font-medium">{@start_item}</span>
-        to <span class="font-medium">{@end_item}</span>
-        of <span class="font-medium">{@total_count}</span> results
-      <% else %>
-        No results
+    <div class="flex items-center gap-2 text-sm text-base-content/70">
+      <%= cond do %>
+        <% @past_end -> %>
+          No results on this page
+          <.button
+            size="sm"
+            link
+            phx-click="go_to_page"
+            phx-value-page="1"
+            phx-target={@myself}
+          >
+            Go to first page
+          </.button>
+        <% @total_count && @total_count > 0 -> %>
+          Showing <span class="font-medium">{@start_item}</span>
+          to <span class="font-medium">{@end_item}</span>
+          of <span class="font-medium">{@total_count}</span> results
+        <% true -> %>
+          No results
       <% end %>
     </div>
     """
@@ -165,10 +182,15 @@ defmodule LiveFilter.Paginator do
 
   defp limit_selector(assigns) do
     ~H"""
-    <form phx-change="change_limit" phx-target={@myself} class="flex items-center gap-2">
-      <label for="limit-select" class="text-sm text-base-content/70">Show</label>
+    <form
+      id={"#{@id}-limit-form"}
+      phx-change="change_limit"
+      phx-target={@myself}
+      class="flex items-center gap-2"
+    >
+      <label for={"#{@id}-limit"} class="text-sm text-base-content/70">Show</label>
       <select
-        id="limit-select"
+        id={"#{@id}-limit"}
         name="limit"
         class="select select-sm select-bordered"
       >

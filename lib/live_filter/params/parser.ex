@@ -3,10 +3,22 @@ defmodule LiveFilter.Params.Parser do
   Converts PostgREST URL query params into a list of Filter structs,
   matched against a provided filter config list.
 
-  Reuses `PgRest.Parser.parse_operator_value/1` for operator parsing.
+  Operator values are parsed with `PgRest.Grammar.Filter.parse_condition/2` and mapped
+  to LiveFilter operators: `is.null`/`is.not_null` become `:is_null`, `not.in` becomes
+  `:not_in`, `not.eq`/`not.neq` become `:neq`/`:eq`, and `cs`/`cd`/`ov` values are split
+  into lists. Other negations and `any`/`all` modifiers have no LiveFilter operator, so the
+  raw value falls back to the config's default operator, as does a value without an
+  operator prefix (`?search=hello`). A value with an operator prefix that the grammar
+  rejects (`is.maybe`, `in.abc`) is skipped; `from_params_with_errors/2` reports it.
   """
 
   alias LiveFilter.{Filter, FilterConfig}
+  alias PgRest.AST.Condition
+  alias PgRest.Error
+  alias PgRest.Grammar.Filter, as: Grammar
+
+  @typedoc "A param that could not be parsed, as a filter with its raw value, with the reason."
+  @type rejection :: {Filter.t(), Error.t()}
 
   @doc """
   Parses URL params into `{filters, remaining_params}`.
@@ -16,7 +28,19 @@ defmodule LiveFilter.Params.Parser do
   Unrecognized params are returned as remaining.
   """
   @spec from_params(map(), [FilterConfig.t()]) :: {[Filter.t()], map()}
-  def from_params(params, configs) when is_map(params) and is_list(configs) do
+  def from_params(params, configs) do
+    {filters, remaining, _rejected} = from_params_with_errors(params, configs)
+    {filters, remaining}
+  end
+
+  @doc """
+  Like `from_params/2`, and also returns the skipped params: a value with an operator
+  prefix that `PgRest.Grammar.Filter.parse_condition/2` rejects, as a filter holding the
+  raw value with the grammar's `PGRST100`.
+  """
+  @spec from_params_with_errors(map(), [FilterConfig.t()]) ::
+          {[Filter.t()], map(), [rejection()]}
+  def from_params_with_errors(params, configs) when is_map(params) and is_list(configs) do
     config_map = build_config_map(configs)
 
     # Extract date range filters from "and" param first
@@ -26,13 +50,13 @@ defmodule LiveFilter.Params.Parser do
     params = update_and_param(params, remaining_and)
 
     {matched, remaining} = partition_params(params, config_map)
-    filters = build_filters(matched, config_map)
+    {filters, rejected} = build_filters(matched)
 
     # Add always_on filters that weren't in params
     all_filters = filters ++ and_filters
     always_on_filters = build_always_on_filters(configs, all_filters)
 
-    {all_filters ++ always_on_filters, remaining}
+    {all_filters ++ always_on_filters, remaining, rejected}
   end
 
   # Parse the "and" param to extract date range filters
@@ -175,11 +199,12 @@ defmodule LiveFilter.Params.Parser do
     Map.get(by_custom, key) || Map.get(by_field, key)
   end
 
-  defp build_filters(matched, _config_map) do
+  # Returns `{filters, rejections}`.
+  defp build_filters(matched) do
     matched
     |> Enum.group_by(fn {config, _key, _value} -> config.field end)
     |> Enum.flat_map(&build_filters_for_field/1)
-    |> Enum.reject(&is_nil/1)
+    |> Enum.split_with(&match?(%Filter{}, &1))
   end
 
   defp build_filters_for_field({_field, entries}) do
@@ -194,23 +219,17 @@ defmodule LiveFilter.Params.Parser do
     end
   end
 
+  defp parse_single_filter(config, "not_in.(" <> rest) do
+    values = rest |> String.trim_trailing(")") |> String.split(",", trim: true)
+    Filter.new(config, :not_in, values)
+  end
+
   defp parse_single_filter(config, value) when is_binary(value) do
-    # Handle custom not_in operator (not supported by PgRest)
-    case value do
-      "not_in.(" <> rest ->
-        values = rest |> String.trim_trailing(")") |> String.split(",", trim: true)
-        Filter.new(config, :not_in, values)
-
-      _ ->
-        case PgRest.Parser.parse_operator_value(value) do
-          {:ok, op, val} ->
-            val = post_process_value(op, val)
-            Filter.new(config, op, val)
-
-          {:error, _} ->
-            # For custom params without operator prefix, use default operator
-            Filter.new(config, config.default_operator, value)
-        end
+    case parse_operator(config.field, value) do
+      {:ok, op, val} -> Filter.new(config, op, val)
+      {:error, %Error{} = error} -> {Filter.new(config, config.default_operator, value), error}
+      # A custom param without an operator prefix uses the default operator
+      :error -> Filter.new(config, config.default_operator, value)
     end
   end
 
@@ -218,48 +237,63 @@ defmodule LiveFilter.Params.Parser do
     Filter.new(config, config.default_operator, value)
   end
 
-  # Post-process parsed values based on operator
-  defp post_process_value(:ilike, val), do: strip_wildcards(val)
-
-  # Array operators: parse {a,b,c} format into list
-  defp post_process_value(op, val) when op in [:cs, :cd, :ov] and is_binary(val) do
-    parse_array_value(val)
+  # Parses `op.value` with the PostgREST grammar into LiveFilter's operator and value.
+  # `:error` means the value has no LiveFilter operator; `{:error, error}` that it has an
+  # operator prefix with a value the grammar rejects.
+  defp parse_operator(field, value) do
+    case Grammar.parse_condition(Atom.to_string(field), value) do
+      {:ok, condition} -> from_condition(condition)
+      {:error, error} -> unparsed(Grammar.operator_prefix?(value), error)
+    end
   end
 
-  # IN operator: parse (a,b,c) format into list
-  defp post_process_value(:in, val) when is_binary(val) do
-    parse_in_value(val)
-  end
+  defp unparsed(true, error), do: {:error, error}
+  defp unparsed(false, _error), do: :error
 
-  defp post_process_value(_op, val), do: val
+  defp from_condition(%Condition{modifier: modifier}) when not is_nil(modifier), do: :error
 
-  defp strip_wildcards(val) when is_binary(val) do
+  defp from_condition(%Condition{op: :in, negate: false, value: values}), do: {:ok, :in, values}
+
+  defp from_condition(%Condition{op: :in, negate: true, value: values}),
+    do: {:ok, :not_in, values}
+
+  defp from_condition(%Condition{op: :is, negate: negate, value: value})
+       when value in [:null, :unknown],
+       do: {:ok, :is_null, not negate}
+
+  defp from_condition(%Condition{op: :is, negate: negate, value: :not_null}),
+    do: {:ok, :is_null, negate}
+
+  defp from_condition(%Condition{op: :eq, negate: true, value: value}), do: {:ok, :neq, value}
+  defp from_condition(%Condition{op: :neq, negate: true, value: value}), do: {:ok, :eq, value}
+  defp from_condition(%Condition{negate: true}), do: :error
+
+  defp from_condition(%Condition{op: :ilike, value: value}),
+    do: {:ok, :ilike, strip_wildcards(value)}
+
+  defp from_condition(%Condition{op: op, value: value}) when op in [:cs, :cd, :ov],
+    do: {:ok, op, array_value(value)}
+
+  defp from_condition(%Condition{op: op, value: value, fts_config: config})
+       when op in [:fts, :plfts, :phfts, :wfts] and is_binary(config),
+       do: {:ok, op, {config, value}}
+
+  defp from_condition(%Condition{op: op, value: value}), do: {:ok, op, value}
+
+  # Wildcards are stripped for display; the query builder adds them back
+  defp strip_wildcards(val) do
     val
     |> String.trim_leading("*")
     |> String.trim_trailing("*")
   end
 
-  defp strip_wildcards(val), do: val
-
-  # Parse PostgREST array format: {a,b,c} -> ["a", "b", "c"]
-  defp parse_array_value("{" <> rest) do
-    rest
-    |> String.trim_trailing("}")
-    |> String.split(",", trim: true)
-    |> Enum.map(&String.trim/1)
+  # `{a,b,c}` -> ["a", "b", "c"]; anything else is a single value
+  defp array_value(literal) do
+    case Grammar.parse_array_literal(literal) do
+      {:ok, elements} -> elements
+      :error -> [literal]
+    end
   end
-
-  defp parse_array_value(val), do: [val]
-
-  # Parse IN value format: (a,b,c) -> ["a", "b", "c"]
-  defp parse_in_value("(" <> rest) do
-    rest
-    |> String.trim_trailing(")")
-    |> String.split(",", trim: true)
-    |> Enum.map(&String.trim/1)
-  end
-
-  defp parse_in_value(val), do: [val]
 
   # Date range: merge gte/lte param pairs into a single filter
   defp build_date_range_filter(config, entries) do
@@ -267,15 +301,15 @@ defmodule LiveFilter.Params.Parser do
       entries
       |> Enum.flat_map(fn {_config, _key, value} -> List.wrap(value) end)
 
-    case extract_range_bounds(all_values) do
+    case extract_range_bounds(config.field, all_values) do
       {nil, nil} -> []
       {gte_val, lte_val} -> [Filter.new(config, :gte_lte, {gte_val, lte_val})]
     end
   end
 
-  defp extract_range_bounds(values) do
+  defp extract_range_bounds(field, values) do
     Enum.reduce(values, {nil, nil}, fn value, {gte, lte} ->
-      case PgRest.Parser.parse_operator_value(value) do
+      case parse_operator(field, value) do
         {:ok, :gte, val} -> {val, lte}
         {:ok, :lte, val} -> {gte, val}
         _ -> {gte, lte}

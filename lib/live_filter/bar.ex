@@ -858,7 +858,13 @@ defmodule LiveFilter.Bar do
   # Hide native spinners for cleaner look - user types value directly
   defp value_display(%{filter: %{config: %{type: :number}}, mode: :command} = assigns) do
     ~H"""
-    <form phx-change="filter_form_change" phx-target={@myself} phx-value-id={@filter.id} class="flex items-center pl-1">
+    <form
+      id={"filter-value-form-#{@filter.id}"}
+      phx-change="filter_form_change"
+      phx-target={@myself}
+      phx-value-id={@filter.id}
+      class="flex items-center pl-1"
+    >
       <input
         type="number"
         name={"filter[#{@filter.id}]"}
@@ -874,7 +880,13 @@ defmodule LiveFilter.Bar do
   # Text in command mode: show inline input
   defp value_display(%{filter: %{config: %{type: :text}}, mode: :command} = assigns) do
     ~H"""
-    <form phx-change="filter_form_change" phx-target={@myself} phx-value-id={@filter.id} class="flex items-center pl-1">
+    <form
+      id={"filter-value-form-#{@filter.id}"}
+      phx-change="filter_form_change"
+      phx-target={@myself}
+      phx-value-id={@filter.id}
+      class="flex items-center pl-1"
+    >
       <input
         type="text"
         name={"filter[#{@filter.id}]"}
@@ -1113,6 +1125,7 @@ defmodule LiveFilter.Bar do
   defp inline_editor(assigns) do
     ~H"""
     <form
+      id={"filter-editor-#{@filter.id}"}
       class="absolute top-full left-0 mt-1 p-3 shadow-lg bg-base-100 rounded-box border z-50 min-w-[240px]"
       phx-change="filter_form_change"
       phx-target={@myself}

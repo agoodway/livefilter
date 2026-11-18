@@ -184,4 +184,90 @@ defmodule LiveFilter.Params.ParserTest do
       assert end_val == "2026-02-15T23:59:59Z"
     end
   end
+
+  describe "from_params/2 operator values" do
+    defp parse_one(field, value) do
+      {[filter], _} = Parser.from_params(%{field => value}, @configs)
+      {filter.operator, filter.value}
+    end
+
+    test "comparison operators keep the raw value" do
+      for op <- ~w(eq neq gt gte lt lte)a do
+        assert parse_one("amount", "#{op}.10") == {op, "10"}
+      end
+    end
+
+    test "values keep their dots" do
+      assert parse_one("amount", "gt.10.5") == {:gt, "10.5"}
+    end
+
+    test "is.true and is.false" do
+      assert parse_one("urgent", "is.true") == {:is, true}
+      assert parse_one("urgent", "is.false") == {:is, false}
+    end
+
+    test "is.null, is.not_null and is.unknown map to :is_null" do
+      assert parse_one("name", "is.null") == {:is_null, true}
+      assert parse_one("name", "is.not_null") == {:is_null, false}
+      assert parse_one("name", "is.unknown") == {:is_null, true}
+    end
+
+    test "like keeps its wildcards" do
+      assert parse_one("name", "like.A*") == {:like, "A*"}
+    end
+
+    test "in splits the list, honouring quoted values" do
+      assert parse_one("status", "in.(active,pending)") == {:in, ["active", "pending"]}
+      assert parse_one("status", ~s|in.("a,b",c)|) == {:in, ["a,b", "c"]}
+    end
+
+    test "cs, cd and ov split the array literal" do
+      assert parse_one("tags", "cs.{urgent,bug}") == {:cs, ["urgent", "bug"]}
+      assert parse_one("tags", "cd.{urgent}") == {:cd, ["urgent"]}
+      assert parse_one("tags", "ov.{bug,feature}") == {:ov, ["bug", "feature"]}
+    end
+
+    test "full-text search keeps the query and an explicit config" do
+      assert parse_one("name", "fts.cats") == {:fts, "cats"}
+      assert parse_one("name", "plfts(english).fat cats") == {:plfts, {"english", "fat cats"}}
+    end
+
+    test "not. negations that LiveFilter operators can express" do
+      assert parse_one("status", "not.in.(draft,cancelled)") == {:not_in, ["draft", "cancelled"]}
+      assert parse_one("status", "not.eq.draft") == {:neq, "draft"}
+      assert parse_one("status", "not.neq.draft") == {:eq, "draft"}
+      assert parse_one("name", "not.is.null") == {:is_null, false}
+      assert parse_one("name", "not.is.not_null") == {:is_null, true}
+    end
+
+    test "other negations and modifiers fall back to the default operator" do
+      assert parse_one("amount", "not.gt.5") == {:eq, "not.gt.5"}
+      assert parse_one("amount", "eq(any).{1,2}") == {:eq, "eq(any).{1,2}"}
+    end
+
+    test "an operator whose value the grammar rejects is skipped, not kept raw" do
+      for {field, value} <- [{"urgent", "is.maybe"}, {"status", "in.abc"}, {"search", "is.x"}] do
+        assert {[], %{}} = Parser.from_params(%{field => value}, @configs)
+      end
+    end
+
+    test "from_params_with_errors/2 reports the skipped params with their grammar error" do
+      params = %{"urgent" => "is.maybe", "status" => "eq.active", "page" => "2"}
+
+      assert {[%Filter{field: :status}], %{"page" => "2"},
+              [{%Filter{field: :urgent, value: "is.maybe"}, %PgRest.Error{code: "PGRST100"}}]} =
+               Parser.from_params_with_errors(params, @configs)
+    end
+
+    test "the custom not_in operator" do
+      assert parse_one("status", "not_in.(draft,cancelled)") == {:not_in, ["draft", "cancelled"]}
+    end
+
+    test "date range bounds ignore other operators" do
+      {[filter], _} =
+        Parser.from_params(%{"inserted_at" => ["gte.2026-01-01", "eq.2026-01-05"]}, @configs)
+
+      assert filter.value == {"2026-01-01", nil}
+    end
+  end
 end

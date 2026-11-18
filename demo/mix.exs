@@ -61,10 +61,8 @@ defmodule Demo.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:daisy_ui_components, "~> 0.9"},
-      # {:livefilter, "~> 0.2.0"},
-      {:livefilter, github: "agoodway/livefilter"},
-      {:pgrest, "~> 0.1.0"},
-      # {:pgrest, path: "../../pgrest"},
+      {:livefilter, path: ".."},
+      {:pgrest, "~> 0.2.0"},
       {:tidewave, "~> 0.5", only: :dev},
 
       # Code quality

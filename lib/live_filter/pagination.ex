@@ -118,7 +118,29 @@ defmodule LiveFilter.Pagination do
   end
 
   @doc """
+  Returns true when total_count is known and the offset is at or past the last row,
+  so the current page holds no rows although the result set does (e.g. `?offset=999`
+  with 3 rows).
+
+  Returns false when there are no rows at all or total_count is unknown.
+
+  ## Example
+
+      iex> pagination = %LiveFilter.Pagination{offset: 999, total_count: 3}
+      iex> LiveFilter.Pagination.past_end?(pagination)
+      true
+  """
+  @spec past_end?(t()) :: boolean()
+  def past_end?(%__MODULE__{total_count: nil}), do: false
+
+  def past_end?(%__MODULE__{offset: offset, total_count: total}),
+    do: total > 0 and offset >= total
+
+  @doc """
   Returns the 1-indexed start item number for display.
+
+  Returns 0 when total_count is known and the page holds no rows (no results, or an
+  offset past the last row).
 
   ## Example
 
@@ -126,13 +148,18 @@ defmodule LiveFilter.Pagination do
       iex> LiveFilter.Pagination.start_item(pagination)
       51
   """
-  @spec start_item(t()) :: pos_integer()
+  @spec start_item(t()) :: non_neg_integer()
+  def start_item(%__MODULE__{offset: offset, total_count: total})
+      when is_integer(total) and offset >= total,
+      do: 0
+
   def start_item(%__MODULE__{offset: offset}), do: offset + 1
 
   @doc """
   Returns the end item number for display.
 
-  Capped at total_count if known.
+  Capped at total_count if known. Returns 0 when total_count is known and the page
+  holds no rows (no results, or an offset past the last row).
 
   ## Example
 
@@ -140,10 +167,12 @@ defmodule LiveFilter.Pagination do
       iex> LiveFilter.Pagination.end_item(pagination)
       60
   """
-  @spec end_item(t()) :: pos_integer()
+  @spec end_item(t()) :: non_neg_integer()
   def end_item(%__MODULE__{offset: offset, limit: limit, total_count: nil}) do
     offset + limit
   end
+
+  def end_item(%__MODULE__{offset: offset, total_count: total}) when offset >= total, do: 0
 
   def end_item(%__MODULE__{offset: offset, limit: limit, total_count: total}) do
     min(offset + limit, total)

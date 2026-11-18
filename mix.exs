@@ -1,7 +1,7 @@
 defmodule LiveFilter.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.3.0"
   @source_url "https://github.com/agoodway/livefilter"
 
   def project do
@@ -57,7 +57,7 @@ defmodule LiveFilter.MixProject do
     [
       {:phoenix_live_view, "~> 1.0"},
       {:ecto, "~> 3.12"},
-      {:pgrest, "~> 0.1.0"},
+      {:pgrest, "~> 0.2.0"},
       # {:pgrest, path: "../pgrest"},
       {:daisy_ui_components, "~> 0.9.3"},
       {:jason, "~> 1.4"},
@@ -83,14 +83,14 @@ defmodule LiveFilter.MixProject do
       maintainers: ["Chase Pursley"],
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: ~w(lib priv mix.exs README.md LICENSE .formatter.exs)
+      files: ~w(lib priv mix.exs README.md CHANGELOG.md LICENSE .formatter.exs)
     ]
   end
 
   defp docs do
     [
       main: "readme",
-      extras: ["README.md"],
+      extras: ["README.md", "CHANGELOG.md"],
       source_ref: "v#{@version}"
     ]
   end

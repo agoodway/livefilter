@@ -24,6 +24,37 @@ defmodule LiveFilter.BarTest do
     |> render_click(event, params)
   end
 
+  describe "form ids" do
+    # Phoenix needs an id on every phx-change form to recover it after a reconnect.
+    test "command-mode number and text input forms have ids" do
+      configs = [
+        LiveFilter.number(:qty, label: "Qty", mode: :command),
+        LiveFilter.text(:note, label: "Note", mode: :command),
+        LiveFilter.number(:price, label: "Price")
+      ]
+
+      filters = Enum.map(configs, &%{LiveFilter.Filter.new(&1) | value: "1"})
+      state = %{config: configs, filters: filters, id: "live-filter-ids", context: %{}}
+
+      html = render_component(LiveFilter.Bar, id: state.id, filter: state)
+      doc = LazyHTML.from_fragment(html)
+
+      assert [_] = Enum.to_list(LazyHTML.query(doc, "form#filter-value-form-qty"))
+      assert [_] = Enum.to_list(LazyHTML.query(doc, "form#filter-value-form-note"))
+      assert [] = Enum.to_list(LazyHTML.query(doc, "form[phx-change]:not([id])"))
+    end
+
+    test "the inline editor form has an id", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/test")
+      add_filter(view, :status)
+      html = filter_event(view, "edit_filter", %{"id" => "status"})
+
+      doc = LazyHTML.from_fragment(html)
+      assert [_] = Enum.to_list(LazyHTML.query(doc, "form#filter-editor-status"))
+      assert [] = Enum.to_list(LazyHTML.query(doc, "form[phx-change]:not([id])"))
+    end
+  end
+
   describe "rendering" do
     test "renders always-on filter with label and input", %{conn: conn} do
       {:ok, _view, html} = live(conn, "/test")

@@ -210,8 +210,42 @@ defmodule LiveFilter.PaginationTest do
       assert result.offset == 0
     end
 
-    test "start_item returns 1 even with total_count = 0" do
-      assert Pagination.start_item(%Pagination{offset: 0, total_count: 0}) == 1
+    test "start_item returns 0 with total_count = 0" do
+      assert Pagination.start_item(%Pagination{offset: 0, total_count: 0}) == 0
+    end
+
+    test "start_item returns 0 when offset is past the last row" do
+      assert Pagination.start_item(%Pagination{limit: 25, offset: 999, total_count: 3}) == 0
+      assert Pagination.start_item(%Pagination{limit: 25, offset: 3, total_count: 3}) == 0
+    end
+
+    test "start_item counts from offset when total_count is unknown" do
+      assert Pagination.start_item(%Pagination{offset: 999, total_count: nil}) == 1000
+    end
+
+    test "end_item returns 0 when offset is past the last row" do
+      assert Pagination.end_item(%Pagination{limit: 25, offset: 999, total_count: 3}) == 0
+      assert Pagination.end_item(%Pagination{limit: 25, offset: 3, total_count: 3}) == 0
+    end
+  end
+
+  describe "past_end?/1" do
+    test "is true when offset is at or past total_count" do
+      assert Pagination.past_end?(%Pagination{offset: 999, total_count: 3})
+      assert Pagination.past_end?(%Pagination{offset: 3, total_count: 3})
+    end
+
+    test "is false on a page that holds rows" do
+      refute Pagination.past_end?(%Pagination{offset: 2, total_count: 3})
+    end
+
+    test "is false when there are no rows at all" do
+      refute Pagination.past_end?(%Pagination{offset: 0, total_count: 0})
+      refute Pagination.past_end?(%Pagination{offset: 50, total_count: 0})
+    end
+
+    test "is false when total_count is unknown" do
+      refute Pagination.past_end?(%Pagination{offset: 999, total_count: nil})
     end
   end
 end

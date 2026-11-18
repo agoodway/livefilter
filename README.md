@@ -148,6 +148,11 @@ defp load_data(socket) do
 end
 ```
 
+A filter whose value the schema field cannot cast (`?estimated_hours=gt.lots`) or whose
+field is not in the schema is skipped, so a hand-edited URL does not crash the LiveView.
+`QueryBuilder.apply_with_errors/3` also returns the skipped filters with their
+`PgRest.Error`, and `QueryBuilder.apply!/3` raises instead.
+
 ## Filter Types
 
 | Type         | Function                     | Default Operators            |

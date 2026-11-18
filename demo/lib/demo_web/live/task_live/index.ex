@@ -3,7 +3,7 @@ defmodule DemoWeb.TaskLive.Index do
 
   alias Demo.{Projects, Repo, Tasks}
   alias Demo.Tasks.Task
-  alias LiveFilter.{Pagination, Params.Serializer, QueryBuilder, Sort}
+  alias LiveFilter.{Pagination, Params.Parser, Params.Serializer, QueryBuilder, Sort}
 
   defp sortable_fields do
     [
@@ -111,7 +111,7 @@ defmodule DemoWeb.TaskLive.Index do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    {filters, remaining} = LiveFilter.from_params(params, filter_config())
+    {filters, remaining, unparsed} = Parser.from_params_with_errors(params, filter_config())
     {pagination, remaining} = LiveFilter.pagination_from_params(remaining, default_limit: 25)
 
     {sort, remaining} =
@@ -123,6 +123,7 @@ defmodule DemoWeb.TaskLive.Index do
       |> assign(:pagination, pagination)
       |> assign(:sort, sort)
       |> assign(:remaining_params, remaining)
+      |> assign(:unparsed_filters, unparsed)
       |> load_tasks()
 
     {:noreply, socket}
@@ -187,12 +188,18 @@ defmodule DemoWeb.TaskLive.Index do
   end
 
   defp load_tasks(
-         %{assigns: %{pagination: pagination, sort: sort, livefilter: %{filters: filters}}} =
+         %{
+           assigns: %{
+             pagination: pagination,
+             sort: sort,
+             unparsed_filters: unparsed,
+             livefilter: %{filters: filters}
+           }
+         } =
            socket
        ) do
-    base_query =
-      Task
-      |> QueryBuilder.apply(filters,
+    {base_query, rejected} =
+      QueryBuilder.apply_with_errors(Task, filters,
         schema: Task,
         allowed_fields: [
           :title,
@@ -217,6 +224,7 @@ defmodule DemoWeb.TaskLive.Index do
     pagination = Pagination.with_total(pagination, total_count)
 
     socket
+    |> assign(:ignored_filters, unparsed ++ rejected)
     |> assign(:tasks, tasks)
     |> assign(:pagination, pagination)
   end
@@ -238,6 +246,18 @@ defmodule DemoWeb.TaskLive.Index do
 
         <div class="lf-filter-section">
           <LiveFilter.bar filter={@livefilter} />
+        </div>
+
+        <div :if={@ignored_filters != []} role="status" class="alert alert-warning alert-soft">
+          <.icon name="hero-exclamation-triangle" class="size-5" />
+          <div>
+            <p class="font-medium">Ignored filter</p>
+            <ul class="text-sm">
+              <li :for={{filter, error} <- @ignored_filters}>
+                <code>{filter.field}</code>: {error.message}
+              </li>
+            </ul>
+          </div>
         </div>
 
         <div class="bg-base-100 rounded-xl border border-base-200 overflow-hidden shadow-sm">
