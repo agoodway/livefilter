@@ -62,7 +62,7 @@ defmodule Demo.MixProject do
       {:bandit, "~> 1.5"},
       {:daisy_ui_components, "~> 0.9"},
       {:livefilter, path: ".."},
-      {:pgrest, "~> 0.2.0"},
+      {:pgrest, "~> 0.3.0"},
       {:tidewave, "~> 0.5", only: :dev},
 
       # Code quality

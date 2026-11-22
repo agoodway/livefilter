@@ -39,7 +39,7 @@ Add `livefilter` to your dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:livefilter, "~> 0.2.0"}
+    {:livefilter, "~> 0.3.1"}
   ]
 end
 ```

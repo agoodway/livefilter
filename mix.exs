@@ -1,7 +1,7 @@
 defmodule LiveFilter.MixProject do
   use Mix.Project
 
-  @version "0.3.0"
+  @version "0.3.1"
   @source_url "https://github.com/agoodway/livefilter"
 
   def project do
@@ -57,7 +57,7 @@ defmodule LiveFilter.MixProject do
     [
       {:phoenix_live_view, "~> 1.0"},
       {:ecto, "~> 3.12"},
-      {:pgrest, "~> 0.2.0"},
+      {:pgrest, "~> 0.2 or ~> 0.3"},
       # {:pgrest, path: "../pgrest"},
       {:daisy_ui_components, "~> 0.9.3"},
       {:jason, "~> 1.4"},

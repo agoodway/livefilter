@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 (2026-11-22)
+
+### Dependencies
+
+- Accepts PgRest 0.2 and 0.3 (`{:pgrest, "~> 0.2 or ~> 0.3"}`). Tested against PgRest 0.3.0; no code changes.
+
 ## 0.3.0 (2026-11-18)
 
 ### Dependencies
